@@ -46,6 +46,11 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # First-run bootstrap: enable Pages on the repo if it isn't already.
+          # Avoids "Get Pages site failed: Not Found" before someone has clicked
+          # through Settings → Pages → Source: GitHub Actions.
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
