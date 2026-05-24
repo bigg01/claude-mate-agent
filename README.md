@@ -8,6 +8,16 @@
   <em>Enterprise-grade <a href="https://claude.ai/code">Claude Code</a> agent platform for Kubernetes and Red Hat OpenShift.</em>
 </p>
 
+<!-- Live build / release banners — generated server-side, click through to the workflow run / release / docs site. -->
+<p align="center">
+  <a href="https://github.com/bigg01/claude-mate-agent/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/bigg01/claude-mate-agent/actions/workflows/ci.yml/badge.svg?branch=main"/></a>
+  <a href="https://github.com/bigg01/claude-mate-agent/actions/workflows/security.yml"><img alt="Security" src="https://github.com/bigg01/claude-mate-agent/actions/workflows/security.yml/badge.svg?branch=main"/></a>
+  <a href="https://github.com/bigg01/claude-mate-agent/actions/workflows/pages.yml"><img alt="Pages" src="https://github.com/bigg01/claude-mate-agent/actions/workflows/pages.yml/badge.svg?branch=main"/></a>
+  <a href="https://github.com/bigg01/claude-mate-agent/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/bigg01/claude-mate-agent?display_name=tag&sort=semver&logo=github&label=release"/></a>
+  <a href="https://github.com/bigg01/claude-mate-agent/pkgs/container/claude-mate-agent%2Fclaude-mate-agent"><img alt="GHCR" src="https://img.shields.io/badge/ghcr.io-claude--mate--agent-2088FF?logo=github"/></a>
+  <a href="https://github.com/bigg01/claude-mate-agent/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/bigg01/claude-mate-agent"/></a>
+</p>
+
 <p align="center">
   <img alt="Kubernetes" src="https://img.shields.io/badge/Kubernetes-CNCF-326CE5?logo=kubernetes"/>
   <img alt="OpenShift" src="https://img.shields.io/badge/OpenShift-compatible-EE0000?logo=redhatopenshift"/>
