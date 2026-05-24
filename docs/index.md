@@ -49,6 +49,7 @@ The **agent** binary is a compiled Python process supervisor. It contains no AI 
 | **Execution** | Static long-running Deployment · on-demand CI/CD Job · isolated [sandbox](sandbox.md) (one-shot K8s Job with gVisor/Kata, ephemeral workspace, TTL cleanup) |
 | **Connectivity** | [LLM Gateway](llm-gateway.md) routing: Anthropic · Kong AI Gateway · LiteLLM · OpenRouter · Azure AI Foundry · Vertex AI · NVIDIA NIM. Swap providers with one Helm value, no image rebuild. |
 | **Personas** | [Architect · Security · DevOps · SRE](personas.md) — each with a curated system prompt and a Claude CLI tool allow-list (security persona is read-only) |
+| **Guardrails** | Five opt-in runtime controls — cost cap · input/output content scrubbing (api-keys / credentials / PII / RFC1918) · `.claudeignore` workspace allowlist · per-persona intent denylist. See [Guardrails](guardrails.md). |
 | **Routing** | Kubernetes Ingress · OpenShift Route · Gateway API HTTPRoute — same chart, capability-gated templates |
 | **GitOps** | ArgoCD `Application` and FluxCD `HelmRelease` examples with automated sync, pruning, and self-heal |
 | **Observability** | Always-on Prometheus `/metrics` · opt-in OTEL OTLP export · auto-provisioned [agent](monitoring.md) and [DORA](dora-metrics.md) Grafana dashboards · structured JSON audit logs |
@@ -58,7 +59,7 @@ The **agent** binary is a compiled Python process supervisor. It contains no AI 
 
 ## Defense-in-depth protection
 
-Six independent security layers, each useful even if every other layer is breached:
+Seven independent security layers, each useful even if every other layer is breached:
 
 | # | Layer | Controls |
 |---|---|---|
@@ -67,7 +68,8 @@ Six independent security layers, each useful even if every other layer is breach
 | 3 | **Network** | NetworkPolicy enabled by default · operator-defined egress allow-list · sandbox NetworkPolicy blocks all ingress · RFC 1918 excluded from default sandbox egress |
 | 4 | **Sandbox** | One-shot K8s Job · `automountServiceAccountToken: false` · optional gVisor / Kata `runtimeClassName` · `activeDeadlineSeconds` hard cap · `ttlSecondsAfterFinished` auto-cleanup · ephemeral `/workspace` volume |
 | 5 | **Identity** | API key from K8s Secret (never image-baked) · persona-bound Claude tool allow-list (`security` is read-only) · OpenShell pod annotations for shell-access audit · Vault Agent Injector option |
-| 6 | **Supply chain** | Trivy `image`/`fs`/`config` (fixed CRITICAL/HIGH blocks merge) · Bandit + Semgrep SAST (SARIF → Code Scanning) · Gitleaks secret scan · Syft CycloneDX SBOM (90-day retention) · `.trivyignore` + `.gitleaks.toml` allowlists with rationale |
+| 6 | **Content / DLP** | Runtime [guardrails](guardrails.md): per-task + hourly cost cap · pre-flight input scrubbing · post-task output scrubbing (redact or block on api-keys, PEM, SSN, CC, RFC1918) · `.claudeignore` workspace allowlist · per-persona intent denylist. All opt-in via Helm. |
+| 7 | **Supply chain** | Trivy `image`/`fs`/`config` (fixed CRITICAL/HIGH blocks merge) · Bandit + Semgrep SAST (SARIF → Code Scanning) · Gitleaks secret scan · Syft CycloneDX SBOM (90-day retention) · `.trivyignore` + `.gitleaks.toml` allowlists with rationale |
 
 Read the full controls catalogue in [Security & Compliance](security.md) and [Security Scanning](security-scanning.md).
 
@@ -101,6 +103,7 @@ The pipeline also emits `pipeline_quality_gate_pass_total` and `pipeline_test_co
 - [Personas](personas.md) — Architect / Security / DevOps / SRE roles
 - [LLM Gateway](llm-gateway.md) — provider routing matrix
 - [Sandboxes](sandbox.md) — one-shot isolated Jobs
+- [Guardrails](guardrails.md) — cost / input / output / workspace / intent controls
 - [Monitoring](monitoring.md) — metrics reference, OTEL setup
 - [Security & Compliance](security.md) — RBAC, SCC, NetworkPolicy, audit
 - [Security Scanning](security-scanning.md) — Trivy, Bandit, Semgrep, Gitleaks, SBOM

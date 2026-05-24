@@ -106,6 +106,7 @@ spec:
                   name: {{ .Values.claudeCode.apiKeySecretName }}
                   key: {{ .Values.claudeCode.apiKeySecretKey }}
             {{- end }}
+            {{- include "claude-mate-agent.guardrailsEnv" . | nindent 12 }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

@@ -181,6 +181,70 @@ affinity: {}
 
 topologySpreadConstraints: []
 
+# ── Guardrails ────────────────────────────────────────────────────────────────
+# Five independently-toggled controls. Each is a no-op when its `enabled` flag
+# is false. Set `guardrails.enabled: true` once and pick the sub-features you
+# want; the agent emits structured `guardrail_*` audit events whenever a check
+# fires, so you can iterate on which controls fit your environment.
+#
+# Pattern groups available out-of-the-box for input/output scrubbing:
+#   api-keys     Anthropic / OpenAI / OpenRouter / AWS / Google / GitHub / GitLab / Slack
+#   credentials  PEM private-key blocks
+#   pii          US SSN, credit-card numbers (Visa / MC / Amex)
+#   network      RFC 1918 private-range IPs
+guardrails:
+  enabled: false
+
+  # 1. Cost cap — pre-flight check refuses tasks when the rolling-hour total
+  #    is at or above maxUsdPerHour; per-task overage emits an audit warning.
+  cost:
+    enabled: false
+    maxUsdPerTask: 1.00
+    maxUsdPerHour: 10.00
+    action: warn            # warn | block (block only affects the hourly cap)
+
+  # 2. Input scrubbing — scan CLAUDE_TASK before invoking claude.
+  input:
+    enabled: false
+    patterns: [api-keys, credentials]
+    extraPatterns: []       # additional regex strings, comma-flattened by Helm
+    action: redact          # redact | block
+
+  # 3. Output scrubbing — scan claude's stdout before logging it.
+  output:
+    enabled: false
+    patterns: [api-keys, credentials]
+    extraPatterns: []
+    action: redact          # redact | block
+
+  # 4. Workspace allowlist — generate .claudeignore in WORK_DIR before claude
+  #    runs, keeping listed paths out of the agent's file-tool view.
+  workspace:
+    enabled: false
+    ignorePatterns:
+      - "**/.env*"
+      - "**/secrets/**"
+      - "**/.aws/credentials"
+      - "**/.ssh/**"
+      - "**/*.pem"
+      - "**/*.key"
+
+  # 5. Intent denylist — per-persona regex patterns rejected pre-flight.
+  intent:
+    enabled: false
+    action: block           # block | warn
+    perPersona:
+      security:
+        deny: ["\\bdeploy\\b", "\\bdestroy\\b", "rm\\s+-rf"]
+      operations:
+        deny: []
+      architect:
+        deny: []
+      devops:
+        deny: []
+      sre:
+        deny: []
+
 # ── Claude Sandboxes ──────────────────────────────────────────────────────────
 # When enabled, the chart renders a Kubernetes Job (in addition to or instead of
 # the Deployment) that runs a single Claude task in an ephemeral, isolated

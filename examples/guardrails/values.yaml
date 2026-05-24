@@ -1,0 +1,63 @@
+# Guardrails example — every family enabled in a sane "first deployment" posture.
+#
+# Apply with:
+#   helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/guardrails/values.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+guardrails:
+  enabled: true
+
+  cost:
+    enabled: true
+    maxUsdPerTask: 0.50          # warn if a single task crosses this
+    maxUsdPerHour: 5.00          # refuse new tasks after this
+    action: block                # only the hourly cap is enforced; per-task is always warn
+
+  input:
+    enabled: true
+    patterns: [api-keys, credentials, pii]
+    extraPatterns: []
+    action: redact               # safe default — task continues, secret is masked
+
+  output:
+    enabled: true
+    patterns: [api-keys, credentials, pii]
+    extraPatterns: []
+    action: redact
+
+  workspace:
+    enabled: true
+    ignorePatterns:
+      - "**/.env*"
+      - "**/secrets/**"
+      - "**/.aws/credentials"
+      - "**/.ssh/**"
+      - "**/*.pem"
+      - "**/*.key"
+      - "**/*credentials*"
+      - "**/*password*"
+
+  intent:
+    enabled: true
+    action: warn                 # start in warn — promote to block after observation
+    perPersona:
+      security:
+        # Security persona should not be deploying or destroying things.
+        deny:
+          - "\\bdeploy\\b"
+          - "\\bdestroy\\b"
+          - "rm\\s+-rf"
+          - "\\bdelete\\b\\s+(?:production|prod)"
+      operations:
+        deny: []
+      architect:
+        deny: []
+      devops:
+        deny: []
+      sre:
+        # SRE persona should not be exfiltrating data through web fetches.
+        deny: ["exfiltrate", "data\\s+leak"]

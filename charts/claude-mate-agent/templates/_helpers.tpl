@@ -53,6 +53,65 @@ Name of the K8s Secret produced by Vault Secrets Operator. Defaults to
 {{- end -}}
 
 {{/*
+Render guardrail env entries. Emits nothing when guardrails.enabled is false,
+so disabled deployments have no GUARDRAILS_* env vars at all.
+*/}}
+{{- define "claude-mate-agent.guardrailsEnv" -}}
+{{- if .Values.guardrails.enabled -}}
+- name: GUARDRAILS_ENABLED
+  value: "true"
+{{- if .Values.guardrails.cost.enabled }}
+- name: GUARDRAILS_COST_ENABLED
+  value: "true"
+- name: GUARDRAILS_COST_MAX_USD_PER_TASK
+  value: {{ .Values.guardrails.cost.maxUsdPerTask | quote }}
+- name: GUARDRAILS_COST_MAX_USD_PER_HOUR
+  value: {{ .Values.guardrails.cost.maxUsdPerHour | quote }}
+- name: GUARDRAILS_COST_ACTION
+  value: {{ .Values.guardrails.cost.action | quote }}
+{{- end }}
+{{- if .Values.guardrails.input.enabled }}
+- name: GUARDRAILS_INPUT_ENABLED
+  value: "true"
+- name: GUARDRAILS_INPUT_PATTERNS
+  value: {{ join "," .Values.guardrails.input.patterns | quote }}
+- name: GUARDRAILS_INPUT_EXTRA_PATTERNS
+  value: {{ join "," .Values.guardrails.input.extraPatterns | quote }}
+- name: GUARDRAILS_INPUT_ACTION
+  value: {{ .Values.guardrails.input.action | quote }}
+{{- end }}
+{{- if .Values.guardrails.output.enabled }}
+- name: GUARDRAILS_OUTPUT_ENABLED
+  value: "true"
+- name: GUARDRAILS_OUTPUT_PATTERNS
+  value: {{ join "," .Values.guardrails.output.patterns | quote }}
+- name: GUARDRAILS_OUTPUT_EXTRA_PATTERNS
+  value: {{ join "," .Values.guardrails.output.extraPatterns | quote }}
+- name: GUARDRAILS_OUTPUT_ACTION
+  value: {{ .Values.guardrails.output.action | quote }}
+{{- end }}
+{{- if .Values.guardrails.workspace.enabled }}
+- name: GUARDRAILS_WORKSPACE_ENABLED
+  value: "true"
+- name: GUARDRAILS_WORKSPACE_IGNORE_PATTERNS
+  value: {{ join "," .Values.guardrails.workspace.ignorePatterns | quote }}
+{{- end }}
+{{- if .Values.guardrails.intent.enabled }}
+- name: GUARDRAILS_INTENT_ENABLED
+  value: "true"
+- name: GUARDRAILS_INTENT_ACTION
+  value: {{ .Values.guardrails.intent.action | quote }}
+{{- range $role, $cfg := .Values.guardrails.intent.perPersona }}
+{{- if $cfg.deny }}
+- name: GUARDRAILS_INTENT_DENY_{{ $role | upper }}
+  value: {{ join "," $cfg.deny | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Render Vault Agent Injector pod annotations from values. Emits
 "vault.hashicorp.com/<key>: <value>" lines; pass `.` as the context.
 */}}

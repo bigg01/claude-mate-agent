@@ -205,6 +205,25 @@ Every execution emits structured JSON audit lines including `ci_system: gitlab_c
 
 ---
 
+## Guardrails (runtime DLP / cost / intent controls)
+
+**Path:** `examples/guardrails/`
+
+Sane "first deployment" posture with every guardrail family enabled — cost cap, input + output scrubbing (api-keys / credentials / PII), workspace `.claudeignore`, and a per-persona intent denylist (security persona starts in `warn` mode so nothing breaks while you observe traffic).
+
+```bash
+helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+  --namespace claude-mate --create-namespace \
+  -f examples/guardrails/values.yaml \
+  --set image.repository=ghcr.io/your-org/claude-mate-agent \
+  --set image.tag=latest \
+  --set claudeCode.apiKeySecretName=claude-mate-api-key
+```
+
+Each of the five families is independent — pick a subset. With everything off, the chart emits zero `GUARDRAILS_*` env vars. See [Guardrails](guardrails.md) for the rollout plan and pattern reference.
+
+---
+
 ## Claude Sandbox (one-shot Kubernetes Job)
 
 **Path:** `examples/sandbox/`

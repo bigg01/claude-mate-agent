@@ -8,6 +8,8 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import guardrails
+
 
 START_TIME = time.time()
 REQUEST_COUNT = 0
@@ -270,6 +272,43 @@ def run_once():
             error="CLAUDE_TASK environment variable is required", result="error", **ctx)
         raise ValueError("CLAUDE_TASK is required for on-demand execution")
 
+    # ── Guardrails: pre-flight checks ─────────────────────────────────────
+    # Each block is a no-op when its env flag is unset, so the entire section
+    # has negligible cost when guardrails.enabled=false at the chart level.
+
+    cost_ok, cost_reason = guardrails.check_cost_budget()
+    if not cost_ok:
+        TASK_EXECUTIONS["error"] += 1
+        log("ERROR", "guardrail_blocked", type="cost", reason=cost_reason,
+            role=role, **ctx)
+        raise RuntimeError(f"cost guardrail blocked task: {cost_reason}")
+
+    intent_ok, intent_hits = guardrails.check_intent(task, role)
+    if intent_hits and not intent_ok:
+        TASK_EXECUTIONS["error"] += 1
+        log("ERROR", "guardrail_blocked", type="intent",
+            patterns=intent_hits, role=role, **ctx)
+        raise RuntimeError("intent guardrail blocked task")
+    if intent_hits:
+        log("WARN", "guardrail_warning", type="intent",
+            patterns=intent_hits, role=role, **ctx)
+
+    task, input_hits, input_blocked = guardrails.scrub_input(task)
+    if input_blocked:
+        TASK_EXECUTIONS["error"] += 1
+        log("ERROR", "guardrail_blocked", type="input",
+            patterns=input_hits, role=role, **ctx)
+        raise RuntimeError("input guardrail blocked task")
+    if input_hits:
+        log("WARN", "guardrail_redacted", type="input",
+            patterns=input_hits, count=len(input_hits), role=role, **ctx)
+
+    workspace_patterns = guardrails.write_claudeignore(work_dir)
+    if workspace_patterns > 0:
+        log("INFO", "guardrail_workspace_ignore_written",
+            patterns=workspace_patterns, path=os.path.join(work_dir, ".claudeignore"),
+            role=role, **ctx)
+
     timeout = int(os.getenv("CLAUDE_TIMEOUT_SECONDS", "1800"))
     cmd = _build_claude_cmd(task, role)
     log("INFO", "on_demand_agent_execution", operating_mode="on-demand",
@@ -282,13 +321,28 @@ def run_once():
             timeout=timeout,
             cwd=work_dir,
         )
-        cost_usd, duration_ms = _parse_claude_output(proc.stdout)
+        # Output guardrail runs before parsing — the parser sees redacted text
+        # if a leak pattern lands inside a JSON value. Cost / duration may
+        # round to 0 in that case; this is the correct safety/utility tradeoff.
+        stdout_text, output_hits, output_blocked = guardrails.scrub_output(proc.stdout)
+        if output_hits:
+            log("WARN", "guardrail_redacted" if not output_blocked else "guardrail_blocked",
+                type="output", patterns=output_hits, count=len(output_hits),
+                role=role, **ctx)
+
+        cost_usd, duration_ms = _parse_claude_output(stdout_text)
         duration_seconds = duration_ms / 1000.0
 
-        result_label = "ok" if proc.returncode == 0 else "error"
+        result_label = "ok" if proc.returncode == 0 and not output_blocked else "error"
         TASK_EXECUTIONS[result_label] += 1
         TASK_COST_USD_TOTAL += cost_usd
         TASK_LAST_DURATION_SECONDS = duration_seconds
+
+        # Post-task cost guardrail: log threshold breaches (record_cost is a
+        # no-op when GUARDRAILS_COST_ENABLED is unset).
+        for event_name, event_data in guardrails.record_cost(cost_usd).items():
+            log("WARN", f"guardrail_cost_{event_name}",
+                **event_data, role=role, **ctx)
 
         if _otel_task_counter is not None:
             _otel_task_counter.add(1, {"result": result_label, "role": role})

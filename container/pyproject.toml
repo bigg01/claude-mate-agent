@@ -32,6 +32,7 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--cov=app",
+    "--cov=guardrails",
     "--cov-report=term-missing",
     "--cov-report=xml:coverage.xml",
     "--cov-report=html:htmlcov",
@@ -39,7 +40,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = ["app"]
+source = ["app", "guardrails"]
 branch = true
 omit = [
     "tests/*",

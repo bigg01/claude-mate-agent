@@ -123,6 +123,7 @@ spec:
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: {{ .Values.nvidia.driverCapabilities | quote }}
             {{- end }}
+            {{- include "claude-mate-agent.guardrailsEnv" . | nindent 12 }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

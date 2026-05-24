@@ -943,7 +943,74 @@ The chart `version` and `appVersion` must remain identical until and unless the 
 - Deprecation entries must reference the target removal version (e.g. *"Removed in v2.0.0"*).
 - The removal commit must update the requirement document to reflect the new contract.
 
-## 28. Open Questions
+## 28. Guardrail Requirements
+
+### 28.1 Scope
+
+The platform must support optional, runtime-toggleable guardrails that wrap every Claude Code task execution. Guardrails complement — they do not replace — the persona tool allow-list, the LLM gateway, the sandbox kernel isolation, and the static-analysis pipeline. They exist to give operators an in-pod control point for content-level concerns that gateways may not catch (e.g. local-only deployments without a gateway) and to make experimentation cheap during the "find out what works" phase.
+
+### 28.2 Independence and Cost
+
+Five guardrail families must be implemented as independent on/off switches:
+
+1. **Cost** — pre-flight refuse on rolling-hour cap; post-task warn on per-task overage.
+2. **Input scrubbing** — redact or block sensitive patterns in `CLAUDE_TASK` before invoking the CLI.
+3. **Output scrubbing** — redact or block sensitive patterns in the Claude CLI stdout before audit logging and JSON parsing.
+4. **Workspace allowlist** — materialise `.claudeignore` in `WORK_DIR` from a configured pattern list.
+5. **Intent denylist** — per-persona regex denylist against the task prompt; block or warn.
+
+Each family must be a no-op when its `enabled` flag is false. The chart must emit no `GUARDRAILS_*` env vars when `guardrails.enabled` is false at the top level, so disabled deployments incur zero startup cost.
+
+### 28.3 Pattern Library
+
+Input and output scrubbing must share a built-in pattern library covering at minimum:
+
+- API keys: Anthropic (`sk-ant-…`), OpenAI / OpenRouter (`sk-…`, `sk-or-v1-…`), AWS (`AKIA…`), Google (`AIza…`), GitHub (`ghp_…`), GitLab (`glpat-…`), Slack (`xox[abprs]-…`).
+- PEM-formatted private-key blocks.
+- US SSN and Visa / Mastercard / Amex credit-card numbers.
+- RFC 1918 private-range IPv4 addresses.
+
+Operators must be able to supply additional regex patterns via `extraPatterns`. Invalid user-supplied regex must be silently dropped at runtime (the engine must not crash).
+
+### 28.4 Modes
+
+Input, output, and intent guardrails must support at least two modes:
+
+- `redact` (input/output only) — replace matched substrings with `[REDACTED]`; the task continues.
+- `block` — refuse the task entirely (input/intent) or mark the result as `error` (output); emit a `guardrail_blocked` audit event.
+- `warn` (intent only) — log a `guardrail_warning` audit event but allow the task.
+
+The cost guardrail's hourly cap must always be enforced as a hard block; the per-task cap must always be a soft warning (since cost is only known after the task completes).
+
+### 28.5 Audit Events
+
+Every guardrail action must emit a structured JSON audit line with at minimum these fields: `timestamp`, `severity`, `message` (`guardrail_*`), `type` (`cost` / `input` / `output` / `intent` / `workspace`), `role`, pod identifiers, and CI context fields. Matched pattern IDs must be included; redacted content must never appear in logs.
+
+### 28.6 Helm Chart Integration
+
+The chart must expose a single `guardrails:` block in `values.yaml` containing one sub-block per family. A reusable helper template (`claude-mate-agent.guardrailsEnv`) must render the env entries for both the long-running Deployment and the sandbox Job, ensuring consistent guardrail behaviour across operating modes.
+
+### 28.7 Test Coverage
+
+Each guardrail family must have unit tests covering:
+
+- Disabled (default) — no-op behaviour.
+- Enabled with no relevant patterns — no-op behaviour.
+- Enabled with a matching pattern — correct redact / block outcome.
+- Mode switching (redact ↔ block / block ↔ warn).
+- Invalid input handling (malformed regex, unwritable workspace, non-numeric cost env).
+
+Coverage of the guardrails module must not drop below the project-wide `--cov-fail-under` threshold.
+
+### 28.8 Boundaries
+
+Guardrails are **not** a replacement for:
+
+- LLM gateway controls (Kong, LiteLLM) — those remain the recommended primary defence for multi-agent or multi-tenant deployments.
+- Persona tool allow-lists — guardrails are content-aware; persona tooling is action-aware.
+- Static-analysis / supply-chain scanning — guardrails operate at runtime on prompts and responses, not on source code or images.
+
+## 29. Open Questions
 
 - Which remote log platform is the enterprise standard target?
 - What is the required audit log retention period?

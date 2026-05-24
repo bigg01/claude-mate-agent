@@ -111,6 +111,10 @@ The `nvidia:` block in `values.yaml` is opt-in (`nvidia.enabled: false` by defau
 
 Local override: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up`. See `examples/nvidia-gpu/` for the Helm values overlay and setup instructions.
 
+### Guardrails
+
+`container/guardrails.py` holds five independent runtime controls (cost cap, input scrubbing, output scrubbing, workspace `.claudeignore`, per-persona intent denylist). All are env-var-gated; the `guardrails.enabled` master switch in `values.yaml` decides whether the chart even emits the `GUARDRAILS_*` env vars (`_helpers.tpl::claude-mate-agent.guardrailsEnv`). Hooked into `app.py::run_once()` before `_build_claude_cmd` (pre-flight checks) and after `_parse_claude_output` (output scrub + cost record). Same helper template runs in both `deployment.yaml` and `sandbox-job.yaml`. Modes are `redact` / `block` (input/output) and `block` / `warn` (intent). The cost guardrail's hourly cap always blocks; the per-task cap always warns (cost is known only post-task). Tests: `container/tests/test_guardrails.py`. Spec: `requirement.md` §28; docs: `docs/guardrails.md`.
+
 ### Semantic versioning
 
 The top-level `VERSION` file is the canonical SemVer 2.0.0 string. Four files must agree with it: `container/pyproject.toml` `version`, `charts/claude-mate-agent/Chart.yaml` `version`+`appVersion`, `charts/claude-mate-agent/values.yaml` `image.tag`. `make version-check` enforces this and runs in both CI systems. To bump: `make release-tag NEW=patch|minor|major|<version>` (script: `scripts/bump-version.sh`) — review, commit, `git tag -a vX.Y.Z`, push. Tag pushes (`v[0-9]+.[0-9]+.[0-9]+*`) trigger `release.yml` which packages and OCI-publishes the chart and creates a GitHub Release. `docker/metadata-action` emits rolling tags (`<major>`, `<major>.<minor>`, `latest`) **only** for stable tags; pre-release tags (containing `-`) get only the full SemVer + commit SHA.

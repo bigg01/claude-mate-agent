@@ -30,6 +30,7 @@ Claude Mate Agent packages the [Claude Code CLI](https://claude.ai/code) as a pr
 | **Execution** | Static long-running Deployment · on-demand CI/CD Job · isolated [sandbox](docs/sandbox.md) (one-shot K8s Job with gVisor/Kata, ephemeral workspace, TTL cleanup) |
 | **Connectivity** | Direct Anthropic · Kong AI Gateway · LiteLLM · OpenRouter · Azure AI Foundry · Vertex AI · NVIDIA NIM — switch with one Helm value, no image rebuild ([details](docs/llm-gateway.md)) |
 | **Personas** | Architect · Security · DevOps · SRE — each with a curated system prompt and Claude CLI tool allow-list (security persona is read-only) |
+| **Guardrails** | Five opt-in runtime controls — [cost cap](docs/guardrails.md) · input/output content scrubbing (api-keys / credentials / PII / RFC1918) · `.claudeignore` workspace allowlist · per-persona intent denylist. Each is independent; zero overhead when disabled. |
 | **Routing** | Kubernetes Ingress · OpenShift Route · Gateway API HTTPRoute — same chart, capability-gated templates |
 | **GitOps** | ArgoCD `Application` and FluxCD `HelmRelease` examples with automated sync, pruning, and self-heal |
 | **Observability** | Always-on Prometheus `/metrics` · opt-in OTEL OTLP · Grafana **agent** + **DORA** dashboards auto-provisioned · structured JSON audit logs |
@@ -39,7 +40,7 @@ Claude Mate Agent packages the [Claude Code CLI](https://claude.ai/code) as a pr
 
 ## Defense-in-depth protection
 
-Six independent security layers, each useful even if every other layer is breached:
+Seven independent security layers, each useful even if every other layer is breached:
 
 | # | Layer | Controls |
 |---|---|---|
@@ -48,7 +49,8 @@ Six independent security layers, each useful even if every other layer is breach
 | 3 | **Network** | NetworkPolicy enabled by default · operator-defined egress allow-list · sandbox NetworkPolicy blocks all ingress · RFC 1918 excluded from default sandbox egress |
 | 4 | **Sandbox** | One-shot K8s Job · `automountServiceAccountToken: false` · optional gVisor/Kata `runtimeClassName` · `activeDeadlineSeconds` hard cap · `ttlSecondsAfterFinished` auto-cleanup · ephemeral `/workspace` volume |
 | 5 | **Identity** | API key from K8s Secret (never image-baked) · persona-bound Claude tool allow-list (`security` is read-only) · OpenShell pod annotations for shell-access audit · Vault Agent Injector option |
-| 6 | **Supply chain** | Trivy `image` + `fs` + `config` (fixed CRITICAL/HIGH blocks merge) · Bandit + Semgrep SAST (SARIF → Code Scanning) · Gitleaks secret scan · Syft CycloneDX SBOM (90-day retention) · `.trivyignore` + `.gitleaks.toml` allowlists with rationale |
+| 6 | **Content / DLP** | Runtime [guardrails](docs/guardrails.md): per-task + hourly cost cap · pre-flight input scrubbing · post-task output scrubbing (redact or block on api-keys, PEM, SSN, CC, RFC1918) · `.claudeignore` workspace allowlist · per-persona intent denylist. All opt-in via Helm. |
+| 7 | **Supply chain** | Trivy `image` + `fs` + `config` (fixed CRITICAL/HIGH blocks merge) · Bandit + Semgrep SAST (SARIF → Code Scanning) · Gitleaks secret scan · Syft CycloneDX SBOM (90-day retention) · `.trivyignore` + `.gitleaks.toml` allowlists with rationale |
 
 See [Security & Compliance](docs/security.md) and [Security Scanning](docs/security-scanning.md) for the full controls catalogue.
 
@@ -136,6 +138,7 @@ make docs-build        # build static site to site/
 | [Personas](docs/personas.md) | Architect / Security / DevOps / SRE roles |
 | [LLM Gateway](docs/llm-gateway.md) | Provider routing — Anthropic, Kong, LiteLLM, OpenRouter, Azure, Vertex AI, NVIDIA |
 | [Sandboxes](docs/sandbox.md) | Ephemeral one-shot Job execution with kernel-level isolation |
+| [Guardrails](docs/guardrails.md) | Cost cap · input/output scrubbing · workspace allowlist · intent denylist |
 | [Monitoring](docs/monitoring.md) | Metrics reference, OTEL setup, ServiceMonitor |
 | [Security & Compliance](docs/security.md) | RBAC, SCC, NetworkPolicy, audit |
 | [Security Scanning](docs/security-scanning.md) | Trivy, Bandit, Semgrep, Gitleaks, SBOM |
