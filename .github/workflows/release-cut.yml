@@ -1,0 +1,136 @@
+name: Cut Release
+
+# Manual workflow that automates the version-bump → commit → tag → push flow.
+# After pushing the tag, dispatches release.yml to do the publish (image tags
+# already arrive via ci.yml's SemVer rules on the same tag push).
+#
+# Why this exists: the local flow is `make release-tag NEW=patch && git commit
+# && git tag && git push` — this workflow does the same from the Actions UI so
+# releases don't depend on a maintainer's laptop.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Bump type or exact SemVer (patch | minor | major | 1.2.3 | 1.2.3-rc.1)'
+        required: true
+        default: patch
+      dry_run:
+        description: 'Show the bump diff without committing / tagging'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write   # push to main + create tag
+  actions: write    # dispatch release.yml after the tag push
+
+concurrency:
+  group: release-cut
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  cut:
+    name: Bump · commit · tag · publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git author
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Verify clean starting state
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Working tree dirty before bump — refusing to continue."
+            git status
+            exit 1
+          fi
+          make version-check
+
+      - name: Bump version across all artefacts
+        id: bump
+        run: |
+          ./scripts/bump-version.sh "${{ inputs.bump }}"
+          NEW=$(tr -d '[:space:]' < VERSION)
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          # Pre-release if the SemVer string contains a hyphen
+          if [[ "$NEW" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo ""
+          echo "Proposed release: v${NEW}"
+          echo ""
+          git --no-pager diff --stat
+
+      - name: Re-verify drift after bump
+        run: make version-check
+
+      - name: Dry-run summary
+        if: inputs.dry_run
+        run: |
+          {
+            echo "## Dry run — v${{ steps.bump.outputs.version }}"
+            echo ""
+            echo "No commit, tag, or release was created."
+            echo ""
+            echo "### Diff"
+            echo ""
+            echo '```diff'
+            git --no-pager diff
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit the bump
+        if: '!inputs.dry_run'
+        run: |
+          git add VERSION container/pyproject.toml \
+                  charts/claude-mate-agent/Chart.yaml \
+                  charts/claude-mate-agent/values.yaml
+          git commit -m "chore(release): v${{ steps.bump.outputs.version }}"
+
+      - name: Create annotated tag
+        if: '!inputs.dry_run'
+        run: |
+          git tag -a "v${{ steps.bump.outputs.version }}" \
+            -m "v${{ steps.bump.outputs.version }}"
+
+      - name: Push commit and tag
+        if: '!inputs.dry_run'
+        run: |
+          git push origin HEAD:main
+          git push origin "v${{ steps.bump.outputs.version }}"
+
+      - name: Dispatch publish workflow
+        if: '!inputs.dry_run'
+        # GITHUB_TOKEN-initiated tag pushes don't trigger downstream workflows
+        # (security guardrail). Dispatch release.yml explicitly so the chart
+        # tarball + GitHub Release are created.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release.yml \
+            --ref "v${{ steps.bump.outputs.version }}" \
+            -f tag="v${{ steps.bump.outputs.version }}"
+
+      - name: Release summary
+        if: '!inputs.dry_run'
+        run: |
+          {
+            echo "## Released v${{ steps.bump.outputs.version }}"
+            echo ""
+            echo "- Pre-release: \`${{ steps.bump.outputs.prerelease }}\`"
+            echo "- Tag: [\`v${{ steps.bump.outputs.version }}\`](${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.bump.outputs.version }})"
+            echo "- Image build: triggered by tag push on \`ci.yml\`"
+            echo "- Chart publish: dispatched on \`release.yml\`"
+          } >> "$GITHUB_STEP_SUMMARY"
