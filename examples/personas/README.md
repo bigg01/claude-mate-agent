@@ -1,16 +1,19 @@
 # Example: Persona-based agent deployments
 
-The Claude Mate Agent ships four built-in personas. Each persona loads a system-prompt file from `/opt/claude-mate/personas/<role>.md` at startup and optionally restricts the Claude Code tool set to match the role's responsibilities.
+The Claude Mate Agent ships five built-in personas. Each persona loads a system-prompt file from `/opt/claude-mate/personas/<role>.md` at startup and optionally restricts the Claude Code tool set to match the role's responsibilities.
 
 ## Personas at a glance
 
 | Role | `TEAM_MATE_ROLE` | Tool scope | Primary output |
 |---|---|---|---|
-| **Architect** | `architect` | All tools incl. WebSearch | ADRs, architecture reviews, design recommendations |
+| **Solution Architect** | `architect` | All tools incl. WebSearch | System-level ADRs, topology reviews, component-boundary recommendations |
+| **Software Architect** | `software-architect` | All tools incl. WebSearch | Code-level ADRs, module/package refactoring plans, internal API contract reviews |
 | **Security** | `security` | Read + Bash only (no writes) | Security findings reports, CVE analysis |
 | **DevOps** | `devops` | All tools incl. file writes | Pipeline improvements, Dockerfile fixes, Helm reviews |
 | **SRE** | `sre` | Read + Bash + WebFetch | Runbooks, SLO recommendations, reliability findings |
 | **Operations** | `operations` | All tools (no restriction) | Ad-hoc tasks |
+
+**Architect vs. Software Architect** — the Solution Architect thinks at the system/topology layer (services, deployments, ADRs for technology choices). The Software Architect thinks at the source-code layer (module boundaries, design patterns, dependency direction, refactoring plans). Pair them when you need both perspectives on the same codebase.
 
 ## Running a persona locally
 

@@ -35,11 +35,12 @@ PERSONAS_DIR = os.getenv("PERSONAS_DIR", "/opt/claude-mate/personas")
 # None = no --allowedTools flag (all tools permitted).
 # Security is read-only + Bash (for scanning); all others allow writes/edits.
 _PERSONA_TOOLS: dict[str, str | None] = {
-    "architect":  "Read,Write,Edit,MultilineEdit,Glob,Grep,LS,Bash,WebFetch,WebSearch",
-    "security":   "Read,Glob,Grep,LS,Bash",
-    "devops":     "Read,Write,Edit,MultilineEdit,Glob,Grep,LS,Bash,WebFetch",
-    "sre":        "Read,Write,Edit,MultilineEdit,Glob,Grep,LS,Bash,WebFetch",
-    "operations": None,
+    "architect":          "Read,Write,Edit,MultilineEdit,Glob,Grep,LS,Bash,WebFetch,WebSearch",
+    "software-architect": "Read,Write,Edit,MultilineEdit,Glob,Grep,LS,Bash,WebFetch,WebSearch",
+    "security":           "Read,Glob,Grep,LS,Bash",
+    "devops":             "Read,Write,Edit,MultilineEdit,Glob,Grep,LS,Bash,WebFetch",
+    "sre":                "Read,Write,Edit,MultilineEdit,Glob,Grep,LS,Bash,WebFetch",
+    "operations":         None,
 }
 
 

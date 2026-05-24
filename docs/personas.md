@@ -1,6 +1,6 @@
 # Personas
 
-Claude Mate Agent ships four built-in personas. Each persona activates when the agent starts in on-demand mode (`--once`) and applies a role-specific system prompt and Claude Code tool set to every task it executes.
+Claude Mate Agent ships five built-in personas. Each persona activates when the agent starts in on-demand mode (`--once`) and applies a role-specific system prompt and Claude Code tool set to every task it executes.
 
 ## How personas work
 
@@ -15,16 +15,34 @@ The audit log records `role`, `persona_loaded`, and `tools_restricted` on every 
 
 ## Built-in personas
 
-### Architect
+### Solution Architect
 
 **Role:** `architect` | **Tools:** all tools including `WebSearch` and `Write`
 
-Reviews and maintains the architectural integrity of the repository. The architect reads existing documentation and code to map component relationships, identify technical debt, evaluate technology choices, and create Architecture Decision Records (ADRs).
+Maintains architectural integrity at the **system / topology layer** — services, deployments, integration points, technology choices. Reads existing architecture documentation, maps component relationships, identifies cross-cutting risks, and authors Architecture Decision Records (ADRs).
 
 **Typical tasks:**
-- "Review the current architecture and identify the top three coupling risks"
+- "Review the current deployment topology and identify the top three coupling risks across services"
 - "Create an ADR for our decision to use Gateway API instead of Ingress"
-- "Assess whether this repository follows hexagonal architecture principles"
+- "Assess our integration points with the upstream identity provider for failure modes"
+
+Pair with the **Software Architect** persona when you also need code-level review.
+
+---
+
+### Software Architect
+
+**Role:** `software-architect` | **Tools:** all tools including `WebSearch` and `Write`
+
+Maintains architectural integrity at the **source-code layer** — module / package boundaries, design patterns (hexagonal, clean, DDD), internal API contracts, dependency direction, refactoring plans. Where the Solution Architect thinks across services, the Software Architect thinks across packages, classes, and functions.
+
+**Typical tasks:**
+- "Map the module-level dependency graph and flag any cycles or violations of intended direction"
+- "Audit whether this codebase follows hexagonal architecture; produce a refactoring plan ordered by leverage"
+- "Review the public API of the `claudeCode` module for surface size and stability"
+- "Identify the top three god classes and recommend a decomposition strategy"
+
+The Software Architect explicitly **defers system-topology findings** to the Solution Architect — keeps each persona's outputs sharp and non-overlapping.
 
 ---
 

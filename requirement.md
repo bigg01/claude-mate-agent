@@ -14,7 +14,7 @@ This document applies to:
 - Static always-on Kubernetes and OpenShift deployments.
 - On-demand GitLab CI/CD and GitHub Actions pipeline execution.
 - Claude sandboxes — ephemeral, isolated one-shot Kubernetes Jobs.
-- Persona-based team-mate roles for Architect, Security, DevOps, and SRE personas.
+- Persona-based team-mate roles for Solution Architect, Software Architect, Security, DevOps, and SRE personas.
 - LLM provider routing — direct Anthropic, Kong AI Gateway, LiteLLM, OpenRouter, Azure AI Foundry, Google Vertex AI, NVIDIA NIM.
 - NVIDIA Container Runtime for GPU-accelerated workloads.
 - Artifactory remote mirrors for Docker, PyPI, npm, and Helm.
@@ -460,14 +460,17 @@ The Claude Mate Agent must support multiple built-in personas that define the ag
 
 ### 19.1 Built-in Personas
 
-The solution must ship four built-in persona definitions:
+The solution must ship five built-in persona definitions:
 
-| Persona | Role value | Purpose |
-|---|---|---|
-| **Architect** | `architect` | Architecture review, ADR creation, design pattern assessment, technical debt identification |
-| **Security** | `security` | OWASP Top 10 assessment, secrets scanning, dependency CVE analysis, container and CI/CD security review |
-| **DevOps** | `devops` | CI/CD pipeline review, Dockerfile and Helm chart improvement, automation gap identification |
-| **SRE** | `sre` | Reliability review, SLO/SLI definition, runbook creation, observability gap identification |
+| Persona | Role value | Scope | Purpose |
+|---|---|---|---|
+| **Solution Architect** | `architect` | System / topology | Reference-architecture maintenance, ADRs for technology choices, component-boundary review, deployment-topology assessment, cross-service integration concerns |
+| **Software Architect** | `software-architect` | Source code | Module / package boundary review, design-pattern audit (hexagonal, clean, DDD), internal-API contract stability, dependency-direction enforcement, refactoring plans with file/line references and effort estimates |
+| **Security** | `security` | Read-only | OWASP Top 10 assessment, secrets scanning, dependency CVE analysis, container and CI/CD security review |
+| **DevOps** | `devops` | Pipeline & infra | CI/CD pipeline review, Dockerfile and Helm chart improvement, automation gap identification |
+| **SRE** | `sre` | Reliability | SLO/SLI definition, runbook creation, observability gap identification, incident-response patterns |
+
+The Solution Architect and Software Architect personas are complementary — pair them when both system-level and code-level architectural review are needed on the same codebase. The Solution Architect must not chase code-level findings; the Software Architect must not chase system-topology findings. Each persona's system prompt must enforce this scope boundary.
 
 An unrestricted `operations` role must also be supported for ad-hoc tasks that do not require a specific persona.
 

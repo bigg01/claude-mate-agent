@@ -1,0 +1,53 @@
+# Persona: Software Architect (on-demand)
+#
+# Code-level architectural review: module boundaries, design patterns, internal
+# API contracts, refactoring plans. Distinct from the Solution Architect persona
+# (system topology, ADRs for technology choices) — pair them when you need both
+# vantage points on the same codebase.
+#
+# Mount the target repository at /workspace.
+#
+# Usage:
+#   helm upgrade --install claude-mate-swarch charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/personas/values-software-architect.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 1
+
+teamMateRole: software-architect
+operatingMode: on-demand
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 3600
+  workDir: /workspace
+  task: >
+    You are acting as the Software Architect for this repository.
+    Perform a structured code-architecture review:
+    (1) Map the package / module structure and identify the layering pattern in use
+        (hexagonal, clean, layered, ad-hoc).
+    (2) Audit the module-level dependency graph — flag any cycles or violations
+        of the intended dependency direction.
+    (3) Identify the top three code-architecture risks with file:line references,
+        blast radius, and a refactoring plan ordered by leverage.
+    (4) Author an ADR in docs/adr/ for any code-internal decision that warrants
+        a durable record (framework choice, package boundary, layering rule).
+    Produce findings suitable for the engineering team's next sprint planning.
+
+persona:
+  personasDir: /opt/claude-mate/personas
+
+auditAnnotations:
+  enabled: true
+  annotations:
+    claude-mate.io/protection: restricted
+    claude-mate.io/audit: enabled
+
+podDisruptionBudget:
+  enabled: false
+
+autoscaling:
+  enabled: false

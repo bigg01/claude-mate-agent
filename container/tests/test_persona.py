@@ -75,8 +75,15 @@ def test_build_cmd_unknown_role_has_no_tool_restriction(personas_dir):
 
 
 def test_persona_tools_table_covers_documented_roles():
-    expected = {"architect", "security", "devops", "sre", "operations"}
+    expected = {"architect", "software-architect", "security", "devops", "sre", "operations"}
     assert set(app._PERSONA_TOOLS.keys()) == expected
+
+
+def test_software_architect_persona_has_write_access():
+    # Code-level architect needs Edit to apply refactorings and Write to author ADRs.
+    tools = app._PERSONA_TOOLS["software-architect"].split(",")
+    for required in ("Read", "Write", "Edit"):
+        assert required in tools
 
 
 def test_security_persona_is_read_only():
