@@ -1,9 +1,12 @@
 IMAGE     ?= claude-mate-agent
-TAG       ?= dev
+# TAG defaults to the canonical SemVer in VERSION. Override for branch / dev
+# builds, e.g.  TAG=$(git rev-parse --short HEAD)  make build.
+TAG       ?= $(shell cat VERSION 2>/dev/null | tr -d '[:space:]' || echo dev)
 PORT      ?= 8080
 DOCS_PORT ?= 8000
 CHART     := charts/claude-mate-agent
 RELEASE   := claude-mate-agent
+VERSION   := $(shell cat VERSION 2>/dev/null | tr -d '[:space:]' || echo 0.0.0)
 
 # ── Artifactory mirrors (all optional — leave unset to use upstream registries) ──
 # DOCKER_REGISTRY   Artifactory Docker virtual/remote repo hostname+path
@@ -51,7 +54,7 @@ MKDOCS_SERVE := $(CONTAINER_TOOL) run -p $(DOCS_PORT):8000 --rm -v $(PWD):/docs 
 .PHONY: help build run run-once check test sast scan scan-fs scan-config \
         secrets sbom security lock sync lint render render-aks \
         render-openshift render-gateway render-bundle package docs-build \
-        docs-serve docs-diagrams clean
+        docs-serve docs-diagrams version version-check release-tag clean
 
 help:
 	@echo "Container tool: $(CONTAINER_TOOL)  (override: CONTAINER_TOOL=docker|podman)"
@@ -252,3 +255,31 @@ docs-diagrams:
 clean:
 	$(CONTAINER_TOOL) rmi $(IMAGE):$(TAG) 2>/dev/null || true
 	rm -rf site/
+
+# ── Versioning (SemVer 2.0.0) ─────────────────────────────────────────────────
+
+# Print the current canonical version.
+version:
+	@echo $(VERSION)
+
+# Verify every artefact agrees with VERSION. Used by CI before tagging.
+version-check:
+	@FILE=$$(cat VERSION | tr -d '[:space:]'); \
+	PY=$$(awk -F\" '/^version =/ {print $$2}' container/pyproject.toml); \
+	CHART=$$(awk '/^version:/ {print $$2}' $(CHART)/Chart.yaml); \
+	APP=$$(awk '/^appVersion:/ {gsub(/"/,""); print $$2}' $(CHART)/Chart.yaml); \
+	TAG=$$(awk -F\" '/^  tag:/ {print $$2; exit}' $(CHART)/values.yaml); \
+	ok=1; \
+	for v in "$$PY" "$$CHART" "$$APP" "$$TAG"; do \
+	  [ "$$v" = "$$FILE" ] || { echo "ERROR: '$$v' != VERSION '$$FILE'"; ok=0; }; \
+	done; \
+	[ $$ok = 1 ] && echo "All artefacts at version $$FILE" || exit 1
+
+# Bump the version across every artefact. Usage:
+#   make release-tag NEW=patch          # 1.2.3 → 1.2.4
+#   make release-tag NEW=minor          # 1.2.3 → 1.3.0
+#   make release-tag NEW=major          # 1.2.3 → 2.0.0
+#   make release-tag NEW=1.4.0-rc.1     # exact SemVer string
+release-tag:
+	@test -n "$(NEW)" || { echo "ERROR: NEW=patch|minor|major|<version> required"; exit 2; }
+	./scripts/bump-version.sh $(NEW)

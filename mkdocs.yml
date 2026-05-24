@@ -81,4 +81,5 @@ nav:
     - Security Scanning: security-scanning.md
     - Quality Gates: quality-gates.md
     - DORA Metrics: dora-metrics.md
+    - Versioning: versioning.md
   - Examples: examples.md

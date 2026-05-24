@@ -867,7 +867,83 @@ Alerts must route to the team's existing notification channel (PagerDuty, Slack,
 - Each emitted DORA event must be retrievable for at least 30 days for incident-review purposes.
 - The Change Failure Rate definition must be documented in `docs/dora-metrics.md` so the team agrees on what counts as a "failure" (rollout failure, post-deploy rollback, hotfix within N hours).
 
-## 27. Open Questions
+## 27. Semantic Versioning Requirements
+
+### 27.1 Versioning Scheme
+
+All releasable artefacts must follow [Semantic Versioning 2.0.0](https://semver.org/) — `MAJOR.MINOR.PATCH[-prerelease][+build]`. The version components have the following meanings for this project:
+
+- **MAJOR** — incremented for any backwards-incompatible change to one of: container CLI flags / env-var contract, Helm values schema, `/healthz` `/readyz` `/metrics` response shapes, audit-log JSON keys, persona role names, or DORA-event field names.
+- **MINOR** — incremented for any backwards-compatible addition (new Helm value with a safe default, new optional env var, new metric, new persona, new example overlay).
+- **PATCH** — incremented for bug fixes, security patches, and dependency-only updates that do not change behaviour.
+- **Pre-release identifiers** — `-alpha.N`, `-beta.N`, `-rc.N` must be used for staged rollouts. Pre-release tags must never carry the `latest` Docker tag or the `major` / `major.minor` rolling tags.
+- **Build metadata** — `+sha.<short>` may be appended for traceability; it must not affect precedence comparisons.
+
+### 27.2 Single Source of Truth
+
+The repository must hold one canonical version string in a top-level `VERSION` file. Every artefact-bearing file must be derived from or verified against it:
+
+| File | Field | How it must match `VERSION` |
+|---|---|---|
+| `VERSION` | (entire contents) | Canonical |
+| `container/pyproject.toml` | `[project] version` | Identical string |
+| `charts/claude-mate-agent/Chart.yaml` | `version`, `appVersion` | Both identical |
+| `charts/claude-mate-agent/values.yaml` | `image.tag` | Identical (quoted) |
+
+Drift between any of the above must fail CI. The `make version-check` target enforces this in pipelines and locally.
+
+### 27.3 Bump Workflow
+
+A single script (`scripts/bump-version.sh`) must update every dependent file atomically. It must accept either:
+
+- `patch` / `minor` / `major` — increment the named component, reset lower components to 0.
+- A full SemVer string — set the version to that exact value; reject inputs that do not match the SemVer grammar.
+
+`make release-tag NEW=...` must wrap the script for ergonomics. The script must not create commits or tags itself — release control belongs to the operator and the release workflow.
+
+### 27.4 Git Tags
+
+- Release tags must be of the form `v<MAJOR>.<MINOR>.<PATCH>[-prerelease]` (no `+build` suffix in the tag name).
+- Tags must be created only on commits where every artefact file already agrees with the target version (`make version-check` passes).
+- Tag pushes must trigger the release workflow (`.github/workflows/release.yml`), which:
+  1. Re-verifies that `VERSION`, `pyproject.toml`, and `Chart.yaml` all agree with the pushed tag.
+  2. Packages the Helm chart at the pinned version.
+  3. Pushes the chart to the OCI Helm registry.
+  4. Generates release notes from `git log` between the previous SemVer tag and the new one.
+  5. Creates a GitHub Release marked `prerelease: true` if the tag contains a pre-release identifier.
+
+### 27.5 Container Image Tagging
+
+Every successful build must emit, at minimum:
+
+| Tag | When |
+|---|---|
+| `<MAJOR>.<MINOR>.<PATCH>` | Always on a SemVer tag push |
+| `<MAJOR>.<MINOR>` | On stable tags only (no pre-release identifier) |
+| `<MAJOR>` | On stable tags only |
+| `latest` | On stable tags only |
+| `<branch>` | On every branch push |
+| `<short-sha>` | On every push |
+
+Pre-release tags (containing `-`) must only emit the full SemVer tag plus the commit SHA — never the rolling `major`, `major.minor`, or `latest` tags. This rule applies to both GHCR (GitHub Actions) and the GitLab Container Registry / Artifactory (GitLab CI).
+
+### 27.6 Helm Chart Version Coupling
+
+The chart `version` and `appVersion` must remain identical until and unless the chart contracts diverge from the application contract — at which point they may move independently but both must still follow SemVer 2.0.0.
+
+### 27.7 Documentation and SBOM
+
+- The MkDocs site must display the current version on every page (header or footer).
+- Every CycloneDX SBOM produced by the build pipeline must include the artefact version under `metadata.component.version`.
+- The CHANGELOG (when introduced) must use [Keep a Changelog](https://keepachangelog.com/) format, with versions matching the `VERSION` file exactly.
+
+### 27.8 Deprecation Policy
+
+- Any change that requires a MAJOR bump must be preceded by at least one MINOR release where the affected field, flag, or behaviour is marked deprecated in the documentation and emits a warning log when used.
+- Deprecation entries must reference the target removal version (e.g. *"Removed in v2.0.0"*).
+- The removal commit must update the requirement document to reflect the new contract.
+
+## 28. Open Questions
 
 - Which remote log platform is the enterprise standard target?
 - What is the required audit log retention period?

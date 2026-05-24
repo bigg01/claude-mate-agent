@@ -89,6 +89,9 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Verify SemVer consistency across artefacts
+        run: make version-check
+
       - name: Sync dependencies (test extra)
         working-directory: container
         run: uv sync --extra test
