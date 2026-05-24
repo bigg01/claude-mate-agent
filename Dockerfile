@@ -58,7 +58,7 @@ RUN uv run --extra build pyinstaller --onefile --name agent --clean --strip \
 # ── Stage 2: install Claude Code CLI ─────────────────────────────────────────
 FROM ${UBI9_IMAGE} AS node-builder
 
-ARG CLAUDE_CODE_VERSION="1.0.3"
+ARG CLAUDE_CODE_VERSION="2.1.150"
 ARG NPM_REGISTRY=""
 
 RUN dnf -y module enable nodejs:22 \
@@ -77,7 +77,7 @@ ARG BUILD_DATE="unknown"
 ARG VERSION="dev"
 ARG VCS_REF="unknown"
 ARG SOURCE_URL=""
-ARG CLAUDE_CODE_VERSION="1.0.3"
+ARG CLAUDE_CODE_VERSION="2.1.150"
 
 LABEL org.opencontainers.image.title="Claude Mate Agent" \
       org.opencontainers.image.description="Claude Mate agent container with health, metrics, and on-demand pipeline mode" \
