@@ -43,7 +43,10 @@ RUN if [ -n "$PYPI_INDEX_URL" ]; then \
         uv sync --extra build --no-install-project; \
     fi
 
-COPY container/app.py app.py
+# Copy all top-level Python modules so PyInstaller's static analyser sees
+# every import target (e.g. app.py importing guardrails). The glob picks up
+# any future modules without needing to touch the Dockerfile.
+COPY container/*.py ./
 
 # --collect-all opentelemetry bundles lazy-imported OTEL namespace packages
 # --runtime-tmpdir /tmp directs onefile extraction to the emptyDir /tmp mount
