@@ -1,0 +1,49 @@
+# Persona: Site Reliability Engineer (on-demand)
+#
+# Reviews reliability, observability, and operational readiness.
+# Creates runbooks and SLO recommendations in docs/runbooks/.
+# Mount the target repository at /workspace.
+#
+# Usage:
+#   helm upgrade --install claude-mate-sre charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/personas/values-sre.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 1
+
+teamMateRole: sre
+operatingMode: on-demand
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 3600
+  workDir: /workspace
+  task: >
+    You are acting as the SRE for this repository.
+    Perform a reliability and operational readiness review:
+    (1) Map all external dependencies and their failure modes.
+    (2) Assess monitoring coverage against the four golden signals
+        (latency, traffic, errors, saturation).
+    (3) Review error handling, graceful shutdown, and retry/backoff patterns.
+    (4) Identify gaps in alerting rules and runbooks.
+    (5) Propose concrete SLI expressions and SLO targets for the primary service endpoints.
+    (6) Create or update runbooks in docs/runbooks/ for the top two incident scenarios.
+
+persona:
+  personasDir: /opt/claude-mate/personas
+
+openshell:
+  enabled: true
+  protectionMode: restricted
+  annotations:
+    openshell.io/protection: restricted
+    openshell.io/audit: enabled
+
+podDisruptionBudget:
+  enabled: false
+
+autoscaling:
+  enabled: false

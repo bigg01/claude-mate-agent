@@ -1,0 +1,136 @@
+name: Claude Sandbox
+
+# Submit a one-shot, isolated Claude Code task to the cluster as a Kubernetes Job.
+# The Job has strict egress, ephemeral filesystem, hard time cap, and auto-cleanup.
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Task prompt for the sandboxed agent
+        required: true
+      team_mate_role:
+        description: Persona for the run
+        required: true
+        type: choice
+        options: [architect, security, devops, sre, operations]
+        default: operations
+      runtime_class:
+        description: 'Optional RuntimeClass (gvisor / kata) — leave empty for default'
+        required: false
+        default: ''
+      namespace:
+        description: Sandbox namespace (created on demand)
+        required: false
+        default: claude-mate-sandbox
+      max_duration_seconds:
+        description: Hard wall-clock cap (seconds)
+        required: false
+        default: '1800'
+
+env:
+  REGISTRY: ${{ vars.ARTIFACTORY_DOCKER_REGISTRY != '' && vars.ARTIFACTORY_DOCKER_REGISTRY || 'ghcr.io' }}
+  IMAGE_NAME: ${{ github.repository }}/claude-mate-agent
+  HELM_VERSION: "3.15.4"
+  IMAGE_TAG: ${{ vars.SANDBOX_IMAGE_TAG || 'latest' }}
+
+jobs:
+  sandbox:
+    name: Run sandbox task
+    runs-on: ubuntu-latest
+    environment: sandbox
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_B64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+
+      - name: Ensure sandbox namespace exists
+        run: |
+          kubectl get namespace "${{ inputs.namespace }}" >/dev/null 2>&1 \
+            || kubectl create namespace "${{ inputs.namespace }}"
+
+      - name: Render and submit sandbox Job
+        id: submit
+        run: |
+          set -euo pipefail
+
+          # Render Job + sandbox NetworkPolicy from the chart
+          helm template claude-mate-agent charts/claude-mate-agent \
+            -f examples/sandbox/values.yaml \
+            --set image.repository="${REGISTRY}/${IMAGE_NAME}" \
+            --set image.tag="${IMAGE_TAG}" \
+            --set claudeCode.apiKeySecretName="${{ vars.CLAUDE_API_KEY_SECRET_NAME || 'claude-mate-api-key' }}" \
+            --set sandbox.task="${{ inputs.task }}" \
+            --set sandbox.teamMateRole="${{ inputs.team_mate_role }}" \
+            --set sandbox.maxDurationSeconds="${{ inputs.max_duration_seconds }}" \
+            --set sandbox.runtimeClassName="${{ inputs.runtime_class }}" \
+            > sandbox-manifests.yaml
+
+          # Create — `kubectl create` (not apply) is required because Job uses generateName
+          kubectl create -n "${{ inputs.namespace }}" -f sandbox-manifests.yaml -o yaml > created.yaml
+
+          # Extract the generated Job name
+          JOB_NAME=$(awk '/kind: Job/{flag=1} flag && /^  name:/{print $2; exit}' created.yaml)
+          echo "job_name=${JOB_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Submitted sandbox Job: ${JOB_NAME}"
+
+      - name: Stream sandbox logs
+        run: |
+          # Wait briefly for the pod to be scheduled, then follow logs
+          kubectl wait -n "${{ inputs.namespace }}" \
+            --for=condition=Ready pod \
+            -l job-name=${{ steps.submit.outputs.job_name }} \
+            --timeout=2m || true
+
+          kubectl logs -n "${{ inputs.namespace }}" -f \
+            job/${{ steps.submit.outputs.job_name }} \
+            | tee sandbox-output.log
+
+      - name: Wait for completion and check status
+        run: |
+          if kubectl wait -n "${{ inputs.namespace }}" \
+              --for=condition=Complete \
+              --timeout=$((${{ inputs.max_duration_seconds }} + 60))s \
+              job/${{ steps.submit.outputs.job_name }}; then
+            echo "Sandbox completed successfully"
+          else
+            echo "Sandbox failed or timed out"
+            kubectl describe job -n "${{ inputs.namespace }}" \
+              ${{ steps.submit.outputs.job_name }}
+            exit 1
+          fi
+
+      - name: Extract cost summary to Job summary
+        if: always()
+        run: |
+          if [ -f sandbox-output.log ]; then
+            COST_LINE=$(grep '"message":"task_cost_summary"' sandbox-output.log || true)
+            if [ -n "$COST_LINE" ]; then
+              echo "### Claude Sandbox Cost" >> "$GITHUB_STEP_SUMMARY"
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              echo "$COST_LINE" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      - name: Upload sandbox output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-output-${{ steps.submit.outputs.job_name }}
+          path: |
+            sandbox-output.log
+            sandbox-manifests.yaml
+          retention-days: 14

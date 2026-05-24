@@ -1,0 +1,34 @@
+# Microsoft Azure AI Foundry — Claude models hosted in Azure with enterprise
+# compliance, private networking, and Azure RBAC.
+#
+# Reference: https://learn.microsoft.com/en-us/azure/ai-foundry/model-inference/concepts/models#anthropic
+#
+# Secret prerequisite — Azure API key, NOT an Anthropic key:
+#   kubectl create secret generic azure-ai-key \
+#     --from-literal=ANTHROPIC_API_KEY=<azure-cognitive-services-key>
+
+claudeCode:
+  apiKeySecretName: azure-ai-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  # Replace <resource> and <region> with your Azure deployment.
+  # The /openai/deployments/<deployment-name> path may also be required for
+  # AOAI-style deployments. Foundry inference endpoints differ — check the
+  # endpoint shown on the deployment page.
+  baseUrl: "https://<resource>.cognitiveservices.azure.com/"
+  # Azure requires an explicit api-version query parameter, exposed via this header.
+  apiVersion: "2024-10-21"
+
+env:
+  # Optional: deployment name when using a single-deployment endpoint.
+  - name: AZURE_DEPLOYMENT_NAME
+    value: "claude-3-5-sonnet-20241022"
+
+networkPolicy:
+  enabled: true
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

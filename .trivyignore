@@ -1,0 +1,8 @@
+# Trivy CVE allowlist — list specific CVE IDs to suppress, with a comment
+# documenting why. Keep this list short and review on every dependency bump.
+#
+# Format: one CVE per line, optional `# <reason>` trailing comment.
+#
+# Examples:
+#   CVE-2024-12345  # accepted — only exploitable via local file write, container is read-only root FS
+#   CVE-2024-67890  # patched in upstream PR #123, awaiting downstream release

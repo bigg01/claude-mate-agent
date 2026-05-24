@@ -1,0 +1,58 @@
+{{- if and .Values.certManager.enabled (not .Values.certManager.ingressShim.enabled) -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "claude-mate-agent.fullname" . }}
+  labels:
+    {{- include "claude-mate-agent.labels" . | nindent 4 }}
+    {{- with .Values.certManager.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.certManager.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  secretName: {{ include "claude-mate-agent.certManagerSecretName" . }}
+  issuerRef:
+    name: {{ required "certManager.issuerRef.name is required when certManager.enabled=true" .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind | default "ClusterIssuer" }}
+    group: {{ .Values.certManager.issuerRef.group | default "cert-manager.io" }}
+  {{- if .Values.certManager.commonName }}
+  commonName: {{ .Values.certManager.commonName | quote }}
+  {{- end }}
+  {{- with .Values.certManager.dnsNames }}
+  dnsNames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.certManager.ipAddresses }}
+  ipAddresses:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.certManager.uris }}
+  uris:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.certManager.emailAddresses }}
+  emailAddresses:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.certManager.duration }}
+  duration: {{ .Values.certManager.duration | quote }}
+  {{- end }}
+  {{- if .Values.certManager.renewBefore }}
+  renewBefore: {{ .Values.certManager.renewBefore | quote }}
+  {{- end }}
+  {{- if or .Values.certManager.privateKey.algorithm .Values.certManager.privateKey.size .Values.certManager.privateKey.rotationPolicy }}
+  privateKey:
+    {{- with .Values.certManager.privateKey.algorithm }}
+    algorithm: {{ . }}
+    {{- end }}
+    {{- if gt (int .Values.certManager.privateKey.size) 0 }}
+    size: {{ .Values.certManager.privateKey.size }}
+    {{- end }}
+    {{- with .Values.certManager.privateKey.rotationPolicy }}
+    rotationPolicy: {{ . }}
+    {{- end }}
+  {{- end }}
+{{- end }}

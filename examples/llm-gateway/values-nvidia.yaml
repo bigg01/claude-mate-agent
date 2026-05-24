@@ -1,0 +1,32 @@
+# NVIDIA NIM (build.nvidia.com) — free-tier API for open-source models
+# (Llama 3.1/3.3, Mistral, DeepSeek, etc.). NIM uses an OpenAI-compatible
+# API, NOT Anthropic-compatible, so a LiteLLM (or Kong) translation layer
+# is required in front of it.
+#
+# Reference: https://build.nvidia.com/explore/discover
+#
+# Architecture:
+#   claude-mate-agent  ──Anthropic API──▶  LiteLLM  ──OpenAI API──▶  NVIDIA NIM
+#
+# Prerequisite: deploy LiteLLM with a config that routes a model alias
+# (e.g. "claude-3-5-sonnet-20241022") to the NIM-backed model of your choice.
+# Then point Claude Code at LiteLLM's Anthropic-compatible route below.
+#
+# Secret prerequisite — the LiteLLM virtual key:
+#   kubectl create secret generic litellm-nvidia-key \
+#     --from-literal=ANTHROPIC_API_KEY=sk-litellm-...
+
+claudeCode:
+  apiKeySecretName: litellm-nvidia-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  baseUrl: "http://litellm-nvidia.litellm.svc.cluster.local:4000/anthropic"
+  apiVersion: ""
+
+# Example LiteLLM config snippet (deploy alongside this chart):
+#
+# model_list:
+#   - model_name: claude-3-5-sonnet-20241022
+#     litellm_params:
+#       model: nvidia_nim/meta/llama-3.3-70b-instruct
+#       api_key: os.environ/NVIDIA_API_KEY
+#       api_base: https://integrate.api.nvidia.com/v1

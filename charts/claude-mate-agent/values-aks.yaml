@@ -1,0 +1,32 @@
+replicaCount: 2
+
+# Option A: Kubernetes Ingress (default for AKS)
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    - host: claude-mate-agent.aks.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Option B: Gateway API (Azure Application Gateway for Containers or nginx-gateway-fabric)
+# Set ingress.enabled: false and gateway.enabled: true to switch to Gateway API.
+# gateway:
+#   enabled: true
+#   createGateway: false          # attach to an existing shared Gateway
+#   parentRefs:
+#     - name: my-gateway
+#       namespace: gateway-system
+#   hostnames:
+#     - claude-mate-agent.aks.example.com
+
+route:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+networkPolicy:
+  enabled: true

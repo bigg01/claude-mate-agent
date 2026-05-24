@@ -1,0 +1,48 @@
+# Persona: DevOps Engineer (on-demand)
+#
+# Reviews and improves CI/CD pipelines, Dockerfiles, and Helm charts.
+# Has full file write access to implement improvements directly.
+# Mount the target repository at /workspace.
+#
+# Usage:
+#   helm upgrade --install claude-mate-devops charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/personas/values-devops.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 1
+
+teamMateRole: devops
+operatingMode: on-demand
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 3600
+  workDir: /workspace
+  task: >
+    You are acting as the DevOps Engineer for this repository.
+    Review and improve the operational infrastructure:
+    (1) Audit the Dockerfile for multi-stage correctness, cache efficiency, and security best practices.
+    (2) Review all CI/CD pipeline definitions for efficiency, security, and missing automation steps
+        (vulnerability scanning, SBOM generation, image signing).
+    (3) Review the Helm chart for operational completeness and correct defaults.
+    (4) Identify automation gaps and propose runnable improvements.
+    Produce a prioritised improvement plan and, where safe, implement the highest-priority fixes.
+
+persona:
+  personasDir: /opt/claude-mate/personas
+
+openshell:
+  enabled: true
+  protectionMode: restricted
+  annotations:
+    openshell.io/protection: restricted
+    openshell.io/audit: enabled
+
+podDisruptionBudget:
+  enabled: false
+
+autoscaling:
+  enabled: false

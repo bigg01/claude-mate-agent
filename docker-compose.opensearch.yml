@@ -1,0 +1,58 @@
+# Docker Compose override — OpenSearch + OpenSearch Dashboards for local testing.
+# Single-node cluster with the security plugin disabled (local-dev only — do
+# NOT use this configuration in any environment reachable from the network).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.opensearch.yml up
+#
+# Endpoints:
+#   OpenSearch API:    http://localhost:9200
+#   Dashboards UI:     http://localhost:5601
+#
+# Wire the agent's audit log sink at OpenSearch by adding to the agent service:
+#   environment:
+#     REMOTE_LOG_DESTINATION: "http://opensearch:9200"
+
+services:
+  opensearch:
+    image: docker.io/opensearchproject/opensearch:2.18.0
+    environment:
+      cluster.name: claude-mate-test
+      node.name: opensearch
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -E '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  opensearch-dashboards:
+    image: docker.io/opensearchproject/opensearch-dashboards:2.18.0
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+volumes:
+  opensearch-data: {}

@@ -1,0 +1,11 @@
+# Direct Anthropic API — the default. Included here for completeness.
+#
+# Secret prerequisite:
+#   kubectl create secret generic claude-mate-api-key \
+#     --from-literal=ANTHROPIC_API_KEY=sk-ant-...
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  baseUrl: ""        # empty = api.anthropic.com (default)
+  apiVersion: ""

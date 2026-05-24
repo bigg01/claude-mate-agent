@@ -1,0 +1,79 @@
+services:
+
+  # Claude Mate Agent — static mode (health + metrics server)
+  agent:
+    build: .
+    image: docker.io/library/claude-mate-agent:dev
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      OPERATING_MODE: static
+      TEAM_MATE_ROLE: operations
+      POD_NAMESPACE: local
+      POD_NAME: claude-mate-agent-local
+      CONTAINER_NAME: claude-mate-agent
+      # Uncomment to enable OTEL export to the collector below
+      # OTEL_ENABLED: "true"
+      # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      # OTEL_EXPORT_INTERVAL_MILLIS: "15000"
+    volumes:
+      - agent-tmp:/tmp
+    healthcheck:
+      test: ["CMD", "/opt/claude-mate/agent", "--help"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  prometheus:
+    image: docker.io/prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/dora_rules.yml:/etc/prometheus/dora_rules.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - agent
+      - prometheus-pushgateway
+
+  # Pushgateway receives DORA + pipeline events from short-lived CI jobs.
+  # Push events with scripts/dora-emit.sh; Prometheus scrapes this every 15s.
+  prometheus-pushgateway:
+    image: docker.io/prom/pushgateway:v1.9.0
+    ports:
+      - "9091:9091"
+    command:
+      - "--persistence.file=/data/pushgateway.data"
+      - "--persistence.interval=5m"
+    volumes:
+      - pushgateway-data:/data
+
+  grafana:
+    image: docker.io/grafana/grafana-oss:11.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/claude-mate-agent.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  agent-tmp: {}
+  grafana-data: {}
+  pushgateway-data: {}

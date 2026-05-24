@@ -1,0 +1,72 @@
+# Example: Static OpenShift deployment with Route and SCC compliance
+# Usage:
+#   helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/static-openshift/values.yaml \
+#     --set image.repository=image-registry.openshift-image-registry.svc:5000/claude-mate/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 2
+
+image:
+  repository: image-registry.openshift-image-registry.svc:5000/claude-mate/claude-mate-agent
+  tag: latest
+  pullPolicy: Always
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 1800
+
+ingress:
+  enabled: false
+
+route:
+  enabled: true
+  host: ""   # OpenShift auto-assigns hostname when empty
+  tls:
+    enabled: true
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+
+# OpenShift arbitrary UID — do NOT set runAsUser
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+openshell:
+  enabled: true
+  protectionMode: restricted
+  annotations:
+    openshell.io/protection: restricted
+    openshell.io/audit: enabled
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    matchLabels:
+      network.openshift.io/policy-group: ingress
+  egress:
+    - ports:
+        - port: 443
+    - ports:
+        - port: 53
+          protocol: UDP

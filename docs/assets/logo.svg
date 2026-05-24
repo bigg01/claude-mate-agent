@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" width="200" height="220">
+  <defs>
+    <linearGradient id="hexGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="innerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#1E1B4B"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer hexagon -->
+  <polygon points="100,4 190,52 190,148 100,196 10,148 10,52"
+           fill="url(#hexGrad)" stroke="#A78BFA" stroke-width="1.5"/>
+
+  <!-- Inner dark panel -->
+  <polygon points="100,20 174,63 174,137 100,180 26,137 26,63"
+           fill="url(#innerGrad)"/>
+
+  <!-- Vertex connection lines -->
+  <line x1="100" y1="4"   x2="100" y2="20"  stroke="#A78BFA" stroke-width="1" opacity="0.6"/>
+  <line x1="190" y1="52"  x2="174" y2="63"  stroke="#A78BFA" stroke-width="1" opacity="0.6"/>
+  <line x1="190" y1="148" x2="174" y2="137" stroke="#A78BFA" stroke-width="1" opacity="0.6"/>
+  <line x1="100" y1="196" x2="100" y2="180" stroke="#A78BFA" stroke-width="1" opacity="0.6"/>
+  <line x1="10"  y1="148" x2="26"  y2="137" stroke="#A78BFA" stroke-width="1" opacity="0.6"/>
+  <line x1="10"  y1="52"  x2="26"  y2="63"  stroke="#A78BFA" stroke-width="1" opacity="0.6"/>
+
+  <!-- Vertex dots -->
+  <circle cx="100" cy="4"   r="4" fill="#C4B5FD" filter="url(#glow)"/>
+  <circle cx="190" cy="52"  r="4" fill="#C4B5FD" filter="url(#glow)"/>
+  <circle cx="190" cy="148" r="4" fill="#C4B5FD" filter="url(#glow)"/>
+  <circle cx="100" cy="196" r="4" fill="#C4B5FD" filter="url(#glow)"/>
+  <circle cx="10"  cy="148" r="4" fill="#C4B5FD" filter="url(#glow)"/>
+  <circle cx="10"  cy="52"  r="4" fill="#C4B5FD" filter="url(#glow)"/>
+
+  <!-- Terminal prompt -->
+  <text x="48" y="92" font-family="'Courier New',Courier,monospace"
+        font-size="26" font-weight="bold" fill="#A78BFA">&gt;_</text>
+
+  <!-- Code lines suggesting activity -->
+  <rect x="48" y="104" width="104" height="3" rx="1.5" fill="#334155"/>
+  <rect x="48" y="113" width="76"  height="3" rx="1.5" fill="#334155"/>
+  <rect x="48" y="122" width="90"  height="3" rx="1.5" fill="#1D4ED8" opacity="0.7"/>
+  <rect x="48" y="131" width="60"  height="3" rx="1.5" fill="#334155"/>
+
+  <!-- Blinking cursor accent -->
+  <rect x="48" y="143" width="12" height="3" rx="1.5" fill="#60A5FA"/>
+
+  <!-- Wordmark -->
+  <text x="100" y="211" text-anchor="middle"
+        font-family="Arial,Helvetica,sans-serif" font-size="13"
+        font-weight="700" fill="#7C3AED" letter-spacing="3">CLAUDE MATE</text>
+</svg>

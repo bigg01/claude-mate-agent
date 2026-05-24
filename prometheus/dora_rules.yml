@@ -1,0 +1,98 @@
+# Prometheus recording + alerting rules for DORA metrics.
+# Loaded by prometheus.yml via `rule_files:`.
+#
+# Metric sources:
+#   - scripts/dora-emit.sh pushes raw events to Pushgateway
+#   - This file pre-computes the four DORA outcomes from those events
+
+groups:
+
+  - name: dora.recording
+    interval: 30s
+    rules:
+
+      # ── 1. Deployment Frequency ─────────────────────────────────────────
+      # Successful deploys per day, averaged over a window.
+      - record: dora:deployments_per_day:7d
+        expr: |
+          sum by (env) (
+            increase(dora_deployments_total{status="ok"}[7d])
+          ) / 7
+
+      - record: dora:deployments_per_day:30d
+        expr: |
+          sum by (env) (
+            increase(dora_deployments_total{status="ok"}[30d])
+          ) / 30
+
+      # ── 2. Lead Time for Changes ────────────────────────────────────────
+      # Quantiles over successful deploys in the last 30 days.
+      - record: dora:lead_time_seconds:p50:30d
+        expr: |
+          quantile_over_time(0.5, dora_lead_time_seconds[30d])
+
+      - record: dora:lead_time_seconds:p95:30d
+        expr: |
+          quantile_over_time(0.95, dora_lead_time_seconds[30d])
+
+      # ── 3. Change Failure Rate ──────────────────────────────────────────
+      # change_failures / total_deploys, expressed as a fraction (0..1).
+      - record: dora:change_failure_rate:30d
+        expr: |
+          (
+            sum by (env) (increase(dora_change_failures_total[30d]))
+          )
+          /
+          clamp_min(
+            sum by (env) (increase(dora_deployments_total[30d])),
+            1
+          )
+
+      # ── 4. Mean Time To Restore ─────────────────────────────────────────
+      - record: dora:mttr_seconds:30d
+        expr: |
+          avg_over_time(dora_restore_seconds[30d])
+
+      # ── Quality-gate pass rate (custom — not pure DORA) ────────────────
+      # Tracks the fraction of pipelines passing every security gate.
+      - record: quality_gate:pass_rate:7d
+        expr: |
+          sum(increase(pipeline_quality_gate_pass_total[7d]))
+          /
+          clamp_min(
+            sum(increase(pipeline_quality_gate_runs_total[7d])),
+            1
+          )
+
+  - name: dora.alerting
+    rules:
+
+      - alert: DORAChangeFailureRateHigh
+        expr: dora:change_failure_rate:30d > 0.15
+        for: 1h
+        labels:
+          severity: warning
+          dimension: dora
+        annotations:
+          summary: "Change-failure rate above 15% in {{ $labels.env }}"
+          description: "Last 30 days: {{ $value | humanizePercentage }} of deploys to {{ $labels.env }} failed or were rolled back."
+
+      - alert: DORALeadTimeRegression
+        expr: dora:lead_time_seconds:p95:30d > 86400  # 1 day
+        for: 2h
+        labels:
+          severity: info
+          dimension: dora
+        annotations:
+          summary: "P95 lead time > 1 day"
+          description: "P95 commit-to-deploy lead time is {{ $value | humanizeDuration }}."
+
+      - alert: DORADeploymentFrequencyLow
+        expr: dora:deployments_per_day:7d < 0.5
+        for: 24h
+        labels:
+          severity: info
+          dimension: dora
+        annotations:
+          summary: "Deployment frequency below 0.5/day"
+          description: "Only {{ $value }} deploys/day to {{ $labels.env }} over the past week."

@@ -1,0 +1,67 @@
+Claude Mate agent has been deployed.
+
+Health endpoint:
+  /healthz
+
+Readiness endpoint:
+  /readyz
+
+Metrics endpoint:
+  /metrics
+
+AKS example (Ingress):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent -f ./charts/claude-mate-agent/values-aks.yaml
+
+OpenShift example (Route):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent -f ./charts/claude-mate-agent/values-openshift.yaml
+
+Gateway API example (attach to existing Gateway):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent \
+    --set gateway.enabled=true \
+    --set 'gateway.parentRefs[0].name=my-gateway' \
+    --set 'gateway.parentRefs[0].namespace=gateway-system' \
+    --set 'gateway.hostnames[0]=claude-mate-agent.example.com'
+
+Gateway API example (create dedicated Gateway):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent \
+    --set gateway.enabled=true \
+    --set gateway.createGateway=true \
+    --set gateway.gatewayClassName=nginx \
+    --set 'gateway.hostnames[0]=claude-mate-agent.example.com'
+
+cert-manager example (issue a TLS cert via ClusterIssuer):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent \
+    --set certManager.enabled=true \
+    --set certManager.issuerRef.name=letsencrypt-prod \
+    --set 'certManager.dnsNames[0]=claude-mate-agent.example.com' \
+    --set ingress.enabled=true \
+    --set 'ingress.tls[0].secretName={{ include "claude-mate-agent.certManagerSecretName" . }}' \
+    --set 'ingress.tls[0].hosts[0]=claude-mate-agent.example.com'
+
+cert-manager example (ingress-shim auto-provisioning):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent \
+    --set certManager.enabled=true \
+    --set certManager.ingressShim.enabled=true \
+    --set certManager.issuerRef.name=letsencrypt-prod \
+    --set ingress.enabled=true \
+    --set 'ingress.tls[0].secretName=claude-mate-agent-tls' \
+    --set 'ingress.tls[0].hosts[0]=claude-mate-agent.example.com'
+
+Vault example (Vault Secrets Operator → K8s Secret → ANTHROPIC_API_KEY):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent \
+    --set vault.enabled=true \
+    --set vault.secretsOperator.enabled=true \
+    --set vault.secretsOperator.vaultAuthRef=vault-auth \
+    --set vault.secretsOperator.mount=secret \
+    --set vault.secretsOperator.path=claude-mate/api \
+    --set claudeCode.apiKeySecretName=claude-mate-agent-vault \
+    --set claudeCode.apiKeySecretKey=ANTHROPIC_API_KEY
+
+Vault example (Vault Agent Injector — sidecar-rendered secret file):
+  helm upgrade --install claude-mate-agent ./charts/claude-mate-agent \
+    --set vault.enabled=true \
+    --set vault.agentInjector.enabled=true \
+    --set vault.agentInjector.role=claude-mate-agent \
+    --set 'vault.agentInjector.secrets.anthropic-key=secret/data/claude-mate/api'
+  # The secret materializes at /vault/secrets/anthropic-key — wrap the entrypoint
+  # with `source /vault/secrets/anthropic-key && exec ...` or supply a template.

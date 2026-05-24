@@ -1,0 +1,387 @@
+stages:
+  - validate
+  - test
+  - build
+  - scan
+  - package
+  - deploy
+  - on-demand
+
+variables:
+  CHART_DIR: charts/claude-mate-agent
+  HELM_RELEASE: claude-mate-agent
+  HELM_NAMESPACE: claude-mate
+  IMAGE_NAME: "$CI_REGISTRY_IMAGE/claude-mate-agent"
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+  STORAGE_DRIVER: vfs
+  BUILDAH_ISOLATION: chroot
+
+  # ── Artifactory mirrors (set as CI/CD variables to enable; leave unset otherwise) ──
+  # ARTIFACTORY_URL              Base URL,               e.g. https://artifactory.example.com
+  # ARTIFACTORY_DOCKER_REGISTRY  Docker repo,            e.g. artifactory.example.com/docker-remote
+  # ARTIFACTORY_PYPI_URL         PyPI simple index,      e.g. https://artifactory.example.com/artifactory/api/pypi/pypi-virtual/simple
+  # ARTIFACTORY_NPM_URL          npm registry,           e.g. https://artifactory.example.com/artifactory/api/npm/npm-virtual/
+  # ARTIFACTORY_HELM_REGISTRY    OCI Helm registry path, e.g. artifactory.example.com/helm-local
+  # ARTIFACTORY_USER             Artifactory username (masked variable)
+  # ARTIFACTORY_TOKEN            Artifactory API token   (masked + protected variable)
+
+docs:build:
+  stage: validate
+  image: squidfunk/mkdocs-material:latest
+  script:
+    - mkdocs build --strict
+  artifacts:
+    paths:
+      - site/
+    expire_in: 7 days
+
+validate:helm:
+  stage: validate
+  image: alpine/helm:3.15.4
+  script:
+    - helm lint "$CHART_DIR"
+    - helm template "$HELM_RELEASE" "$CHART_DIR" -f "$CHART_DIR/values-aks.yaml" --set image.repository="$IMAGE_NAME" --set image.tag="$IMAGE_TAG" > aks-rendered.yaml
+    - helm template "$HELM_RELEASE" "$CHART_DIR" -f "$CHART_DIR/values-openshift.yaml" --api-versions route.openshift.io/v1/Route --set image.repository="$IMAGE_NAME" --set image.tag="$IMAGE_TAG" > openshift-rendered.yaml
+  artifacts:
+    when: always
+    paths:
+      - aks-rendered.yaml
+      - openshift-rendered.yaml
+    expire_in: 7 days
+
+test:python:
+  stage: test
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+  script:
+    - cd container
+    - uv sync --extra test
+    - uv run pytest --junit-xml=junit.xml
+    - |
+      if [ -n "${PUSHGATEWAY_URL:-}" ] && [ -f coverage.xml ]; then
+        PCT=$(grep -oP 'line-rate="\K[0-9.]+' coverage.xml | head -1 | awk '{printf "%.1f", $1 * 100}')
+        curl --fail --silent --show-error --data-binary @- \
+          "${PUSHGATEWAY_URL}/metrics/job/pipeline/branch/${CI_COMMIT_REF_NAME}" <<EOF
+        # TYPE pipeline_test_coverage_percent gauge
+        pipeline_test_coverage_percent{repo="${CI_PROJECT_PATH}",branch="${CI_COMMIT_REF_NAME}"} ${PCT}
+        EOF
+      fi
+  coverage: '/^TOTAL.+?(\d+(?:\.\d+)?\%)$/'
+  artifacts:
+    when: always
+    reports:
+      junit: container/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: container/coverage.xml
+    paths:
+      - container/coverage.xml
+      - container/htmlcov/
+    expire_in: 14 days
+
+sast:bandit:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - pip install --no-cache-dir 'bandit[toml]>=1.7'
+  script:
+    - bandit -r container/app.py -c container/pyproject.toml -f json -o bandit.json
+  artifacts:
+    when: always
+    paths:
+      - bandit.json
+    expire_in: 30 days
+
+secrets:gitleaks:
+  stage: test
+  image:
+    name: zricethezav/gitleaks:latest
+    entrypoint: [""]
+  script:
+    - gitleaks detect --source=. --config=.gitleaks.toml --verbose --redact --report-format=json --report-path=gitleaks.json
+  artifacts:
+    when: always
+    paths:
+      - gitleaks.json
+    expire_in: 30 days
+  allow_failure: false
+
+scan:trivy-fs:
+  stage: test
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs --severity CRITICAL,HIGH --exit-code 1 --ignore-unfixed
+        --ignorefile .trivyignore
+        --scanners vuln,secret
+        --skip-dirs container/.venv,site
+        --format json --output trivy-fs.json .
+  artifacts:
+    when: always
+    paths:
+      - trivy-fs.json
+    expire_in: 30 days
+
+scan:trivy-config:
+  stage: test
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy config --severity CRITICAL,HIGH --exit-code 1
+        --skip-dirs container/.venv,site
+        --format json --output trivy-config.json .
+  artifacts:
+    when: always
+    paths:
+      - trivy-config.json
+    expire_in: 30 days
+
+build:image:
+  stage: build
+  image: quay.io/buildah/stable:latest
+  needs:
+    - validate:helm
+    - test:python
+  before_script:
+    - buildah login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - |
+      if [ -n "$ARTIFACTORY_DOCKER_REGISTRY" ]; then
+        buildah login -u "$ARTIFACTORY_USER" -p "$ARTIFACTORY_TOKEN" "$ARTIFACTORY_DOCKER_REGISTRY"
+      fi
+  script:
+    - |
+      MIRROR_ARGS=""
+      if [ -n "$ARTIFACTORY_DOCKER_REGISTRY" ]; then
+        MIRROR_ARGS="$MIRROR_ARGS --build-arg UBI9_IMAGE=$ARTIFACTORY_DOCKER_REGISTRY/ubi9/ubi:latest"
+        MIRROR_ARGS="$MIRROR_ARGS --build-arg UBI9_MINIMAL_IMAGE=$ARTIFACTORY_DOCKER_REGISTRY/ubi9/ubi-minimal:latest"
+        MIRROR_ARGS="$MIRROR_ARGS --build-arg UV_IMAGE=$ARTIFACTORY_DOCKER_REGISTRY/astral-sh/uv:latest"
+      fi
+      if [ -n "$ARTIFACTORY_PYPI_URL" ]; then
+        MIRROR_ARGS="$MIRROR_ARGS --build-arg PYPI_INDEX_URL=$ARTIFACTORY_PYPI_URL"
+      fi
+      if [ -n "$ARTIFACTORY_NPM_URL" ]; then
+        MIRROR_ARGS="$MIRROR_ARGS --build-arg NPM_REGISTRY=$ARTIFACTORY_NPM_URL"
+      fi
+      buildah bud --format docker \
+        --build-arg VERSION="$IMAGE_TAG" \
+        --build-arg VCS_REF="$CI_COMMIT_SHA" \
+        --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --build-arg SOURCE_URL="$CI_PROJECT_URL" \
+        $MIRROR_ARGS \
+        -t "$IMAGE_NAME:$IMAGE_TAG" -f Dockerfile .
+    - buildah tag "$IMAGE_NAME:$IMAGE_TAG" "$IMAGE_NAME:latest"
+    - buildah push "$IMAGE_NAME:$IMAGE_TAG"
+    - buildah push "$IMAGE_NAME:latest"
+    - |
+      if [ -n "$ARTIFACTORY_DOCKER_REGISTRY" ]; then
+        ARTIFACTORY_IMAGE="$ARTIFACTORY_DOCKER_REGISTRY/claude-mate-agent:$IMAGE_TAG"
+        buildah tag "$IMAGE_NAME:$IMAGE_TAG" "$ARTIFACTORY_IMAGE"
+        buildah push "$ARTIFACTORY_IMAGE"
+        buildah tag "$IMAGE_NAME:$IMAGE_TAG" "$ARTIFACTORY_DOCKER_REGISTRY/claude-mate-agent:latest"
+        buildah push "$ARTIFACTORY_DOCKER_REGISTRY/claude-mate-agent:latest"
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+
+scan:trivy-image:
+  stage: scan
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs:
+    - build:image
+  script:
+    - trivy image --severity CRITICAL,HIGH --exit-code 1 --ignore-unfixed
+        --ignorefile .trivyignore
+        --format json --output trivy-image.json
+        "$IMAGE_NAME:$IMAGE_TAG"
+  artifacts:
+    when: always
+    paths:
+      - trivy-image.json
+    expire_in: 30 days
+
+sbom:syft:
+  stage: scan
+  image:
+    name: anchore/syft:latest
+    entrypoint: [""]
+  needs:
+    - build:image
+  script:
+    - syft "$IMAGE_NAME:$IMAGE_TAG" -o cyclonedx-json=sbom.cyclonedx.json
+  artifacts:
+    paths:
+      - sbom.cyclonedx.json
+    expire_in: 90 days
+
+package:helm:
+  stage: package
+  image: alpine/helm:3.15.4
+  needs:
+    - validate:helm
+  script:
+    - helm package "$CHART_DIR" --destination .
+    - |
+      if [ -n "$ARTIFACTORY_HELM_REGISTRY" ]; then
+        helm registry login "$ARTIFACTORY_HELM_REGISTRY" \
+          --username "$ARTIFACTORY_USER" \
+          --password "$ARTIFACTORY_TOKEN"
+        helm push claude-mate-agent-*.tgz "oci://$ARTIFACTORY_HELM_REGISTRY"
+      fi
+  artifacts:
+    paths:
+      - claude-mate-agent-*.tgz
+    expire_in: 30 days
+
+deploy:aks:
+  stage: deploy
+  image: alpine/helm:3.15.4
+  needs:
+    - build:image
+    - package:helm
+  before_script:
+    - test -n "$KUBE_CONFIG_AKS_B64"
+    - apk add --no-cache bash curl
+    - mkdir -p "$CI_PROJECT_DIR/.kube"
+    - echo "$KUBE_CONFIG_AKS_B64" | base64 -d > "$CI_PROJECT_DIR/.kube/config"
+    - export KUBECONFIG="$CI_PROJECT_DIR/.kube/config"
+  script:
+    - START_TS=$(date -u +%s)
+    - DEPLOY_STATUS=ok
+    - helm upgrade --install "$HELM_RELEASE" "$CHART_DIR" --namespace "$HELM_NAMESPACE" --create-namespace -f "$CHART_DIR/values-aks.yaml" --set image.repository="$IMAGE_NAME" --set image.tag="$IMAGE_TAG" || DEPLOY_STATUS=failed
+    - |
+      if [ -n "${PUSHGATEWAY_URL:-}" ]; then
+        COMMIT_TS=$(git log -1 --format=%ct "$CI_COMMIT_SHA" 2>/dev/null || echo "$START_TS")
+        LEAD=$((START_TS - COMMIT_TS))
+        [ "$LEAD" -lt 0 ] && LEAD=0
+        CI_SYSTEM=gitlab_ci ./scripts/dora-emit.sh deploy \
+          --env aks --status "$DEPLOY_STATUS" \
+          --commit "$CI_COMMIT_SHA" \
+          --lead-time-seconds "$LEAD"
+      fi
+    - [ "$DEPLOY_STATUS" = "ok" ] || exit 1
+  environment:
+    name: aks/$HELM_NAMESPACE
+  rules:
+    - when: manual
+      allow_failure: false
+
+deploy:openshift:
+  stage: deploy
+  image: alpine/helm:3.15.4
+  needs:
+    - build:image
+    - package:helm
+  before_script:
+    - test -n "$KUBE_CONFIG_OPENSHIFT_B64"
+    - apk add --no-cache bash curl
+    - mkdir -p "$CI_PROJECT_DIR/.kube"
+    - echo "$KUBE_CONFIG_OPENSHIFT_B64" | base64 -d > "$CI_PROJECT_DIR/.kube/config"
+    - export KUBECONFIG="$CI_PROJECT_DIR/.kube/config"
+  script:
+    - START_TS=$(date -u +%s)
+    - DEPLOY_STATUS=ok
+    - helm upgrade --install "$HELM_RELEASE" "$CHART_DIR" --namespace "$HELM_NAMESPACE" --create-namespace -f "$CHART_DIR/values-openshift.yaml" --set image.repository="$IMAGE_NAME" --set image.tag="$IMAGE_TAG" || DEPLOY_STATUS=failed
+    - |
+      if [ -n "${PUSHGATEWAY_URL:-}" ]; then
+        COMMIT_TS=$(git log -1 --format=%ct "$CI_COMMIT_SHA" 2>/dev/null || echo "$START_TS")
+        LEAD=$((START_TS - COMMIT_TS))
+        [ "$LEAD" -lt 0 ] && LEAD=0
+        CI_SYSTEM=gitlab_ci ./scripts/dora-emit.sh deploy \
+          --env openshift --status "$DEPLOY_STATUS" \
+          --commit "$CI_COMMIT_SHA" \
+          --lead-time-seconds "$LEAD"
+      fi
+    - [ "$DEPLOY_STATUS" = "ok" ] || exit 1
+  environment:
+    name: openshift/$HELM_NAMESPACE
+  rules:
+    - when: manual
+      allow_failure: false
+
+run:on-demand-agent:
+  stage: on-demand
+  image:
+    name: "$IMAGE_NAME:$IMAGE_TAG"
+    entrypoint: [""]
+  needs:
+    - build:image
+  timeout: 30m
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  variables:
+    OPERATING_MODE: on-demand
+    TEAM_MATE_ROLE: operations
+    # ANTHROPIC_API_KEY must be set as a masked protected CI/CD variable
+    # CLAUDE_TASK must be set as a CI/CD variable containing the task prompt
+    CLAUDE_TIMEOUT_SECONDS: "1800"
+  script:
+    - python3 /opt/claude-mate/app.py --once
+  rules:
+    - when: manual
+      allow_failure: false
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Sandbox task — render the chart's sandbox Job/NetworkPolicy and submit them
+# to the target cluster. The agent runs as a Kubernetes Job, isolated from
+# CI runners, with hard time cap and auto-cleanup.
+#
+# Required CI/CD variables:
+#   KUBE_CONFIG_SANDBOX_B64   base64-encoded kubeconfig for the sandbox cluster
+#   CLAUDE_TASK               task prompt
+#   TEAM_MATE_ROLE            persona (architect|security|devops|sre|operations)
+#   SANDBOX_NAMESPACE         optional, defaults to claude-mate-sandbox
+#   SANDBOX_RUNTIME_CLASS     optional, e.g. "gvisor" or "kata"
+#   SANDBOX_MAX_DURATION      optional, seconds (default 1800)
+#   CLAUDE_API_KEY_SECRET     optional, default claude-mate-api-key
+run:sandbox-agent:
+  stage: on-demand
+  image: alpine/helm:3.15.4
+  needs:
+    - build:image
+  variables:
+    SANDBOX_NAMESPACE: "claude-mate-sandbox"
+    SANDBOX_MAX_DURATION: "1800"
+    CLAUDE_API_KEY_SECRET: "claude-mate-api-key"
+  before_script:
+    - apk add --no-cache curl bash gettext
+    - curl -fsSL "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+    - chmod +x /usr/local/bin/kubectl
+    - test -n "$KUBE_CONFIG_SANDBOX_B64"
+    - test -n "$CLAUDE_TASK"
+    - mkdir -p "$CI_PROJECT_DIR/.kube"
+    - echo "$KUBE_CONFIG_SANDBOX_B64" | base64 -d > "$CI_PROJECT_DIR/.kube/config"
+    - export KUBECONFIG="$CI_PROJECT_DIR/.kube/config"
+  script:
+    - kubectl get namespace "$SANDBOX_NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$SANDBOX_NAMESPACE"
+    - |
+      helm template claude-mate-agent charts/claude-mate-agent \
+        -f examples/sandbox/values.yaml \
+        --set image.repository="$IMAGE_NAME" \
+        --set image.tag="$IMAGE_TAG" \
+        --set claudeCode.apiKeySecretName="$CLAUDE_API_KEY_SECRET" \
+        --set sandbox.task="$CLAUDE_TASK" \
+        --set sandbox.teamMateRole="${TEAM_MATE_ROLE:-operations}" \
+        --set sandbox.maxDurationSeconds="$SANDBOX_MAX_DURATION" \
+        --set sandbox.runtimeClassName="${SANDBOX_RUNTIME_CLASS:-}" \
+        > sandbox-manifests.yaml
+    - kubectl create -n "$SANDBOX_NAMESPACE" -f sandbox-manifests.yaml -o yaml > created.yaml
+    - JOB_NAME=$(awk '/kind: Job/{flag=1} flag && /^  name:/{print $2; exit}' created.yaml)
+    - echo "Submitted sandbox Job:$JOB_NAME"
+    - kubectl wait -n "$SANDBOX_NAMESPACE" --for=condition=Ready pod -l job-name="$JOB_NAME" --timeout=2m || true
+    - kubectl logs -n "$SANDBOX_NAMESPACE" -f "job/$JOB_NAME" | tee sandbox-output.log
+    - kubectl wait -n "$SANDBOX_NAMESPACE" --for=condition=Complete "job/$JOB_NAME" --timeout=$((SANDBOX_MAX_DURATION + 60))s
+  artifacts:
+    when: always
+    paths:
+      - sandbox-output.log
+      - sandbox-manifests.yaml
+    expire_in: 14 days
+  rules:
+    - when: manual
+      allow_failure: false

@@ -1,0 +1,232 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/claude-mate-agent
+  HELM_VERSION: "3.15.4"
+  # Artifactory (all optional — set as repository variables to enable mirroring)
+  # ARTIFACTORY_URL            Base URL, e.g. https://artifactory.example.com
+  # ARTIFACTORY_DOCKER_REGISTRY Docker repo, e.g. artifactory.example.com/docker-remote
+  # ARTIFACTORY_PYPI_URL       PyPI simple index URL
+  # ARTIFACTORY_NPM_URL        npm registry URL
+  # ARTIFACTORY_HELM_REGISTRY  OCI Helm registry, e.g. artifactory.example.com/helm-local
+
+jobs:
+  validate-helm:
+    name: Helm lint & render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Lint chart
+        run: helm lint charts/claude-mate-agent
+
+      - name: Render AKS manifests
+        run: |
+          helm template claude-mate-agent charts/claude-mate-agent \
+            -f charts/claude-mate-agent/values-aks.yaml \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.sha }} \
+            > aks-rendered.yaml
+
+      - name: Render OpenShift manifests
+        run: |
+          helm template claude-mate-agent charts/claude-mate-agent \
+            -f charts/claude-mate-agent/values-openshift.yaml \
+            --api-versions route.openshift.io/v1/Route \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.sha }} \
+            > openshift-rendered.yaml
+
+      - name: Render Gateway API manifests
+        run: |
+          helm template claude-mate-agent charts/claude-mate-agent \
+            --set gateway.enabled=true \
+            --api-versions gateway.networking.k8s.io/v1/HTTPRoute \
+            --api-versions gateway.networking.k8s.io/v1/Gateway \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.sha }} \
+            > gateway-rendered.yaml
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rendered-manifests
+          path: |
+            aks-rendered.yaml
+            openshift-rendered.yaml
+            gateway-rendered.yaml
+          retention-days: 7
+
+  test:
+    name: Unit tests & coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies (test extra)
+        working-directory: container
+        run: uv sync --extra test
+
+      - name: Run pytest with coverage
+        working-directory: container
+        run: uv run pytest --junit-xml=junit.xml
+
+      - name: Upload coverage report (XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            container/coverage.xml
+            container/htmlcov/
+            container/junit.xml
+          retention-days: 14
+
+      - name: Coverage summary in job log
+        if: always()
+        working-directory: container
+        run: |
+          if [ -f coverage.xml ]; then
+            COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' coverage.xml | head -1)
+            PCT=$(awk "BEGIN {printf \"%.1f\", $COVERAGE * 100}")
+            echo "### Test coverage: ${PCT}%" >> "$GITHUB_STEP_SUMMARY"
+            echo "coverage_pct=${PCT}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Push coverage to Pushgateway
+        if: always() && vars.PUSHGATEWAY_URL != ''
+        env:
+          PUSHGATEWAY_URL: ${{ vars.PUSHGATEWAY_URL }}
+        run: |
+          curl --fail --silent --show-error \
+            --data-binary @- \
+            "${PUSHGATEWAY_URL}/metrics/job/pipeline/branch/${GITHUB_REF_NAME}" <<EOF
+          # TYPE pipeline_test_coverage_percent gauge
+          pipeline_test_coverage_percent{repo="${GITHUB_REPOSITORY}",branch="${GITHUB_REF_NAME}"} ${coverage_pct:-0}
+          EOF
+
+  build-docs:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build MkDocs site
+        run: docker run --rm -v "$PWD:/docs" squidfunk/mkdocs-material build --strict
+
+      - name: Upload docs site
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: site/
+          retention-days: 7
+
+  build-and-push:
+    name: Build & push image
+    runs-on: ubuntu-latest
+    needs: [validate-helm, test]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Artifactory
+        if: github.event_name != 'pull_request' && vars.ARTIFACTORY_DOCKER_REGISTRY != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.ARTIFACTORY_DOCKER_REGISTRY }}
+          username: ${{ secrets.ARTIFACTORY_USER }}
+          password: ${{ secrets.ARTIFACTORY_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ vars.ARTIFACTORY_DOCKER_REGISTRY != '' && format('{0}/{1}', vars.ARTIFACTORY_DOCKER_REGISTRY, env.IMAGE_NAME) || '' }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.sha }}
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+            ${{ vars.ARTIFACTORY_DOCKER_REGISTRY != '' && format('UBI9_IMAGE={0}/ubi9/ubi:latest', vars.ARTIFACTORY_DOCKER_REGISTRY) || '' }}
+            ${{ vars.ARTIFACTORY_DOCKER_REGISTRY != '' && format('UBI9_MINIMAL_IMAGE={0}/ubi9/ubi-minimal:latest', vars.ARTIFACTORY_DOCKER_REGISTRY) || '' }}
+            ${{ vars.ARTIFACTORY_DOCKER_REGISTRY != '' && format('UV_IMAGE={0}/astral-sh/uv:latest', vars.ARTIFACTORY_DOCKER_REGISTRY) || '' }}
+            ${{ vars.ARTIFACTORY_PYPI_URL != '' && format('PYPI_INDEX_URL={0}', vars.ARTIFACTORY_PYPI_URL) || '' }}
+            ${{ vars.ARTIFACTORY_NPM_URL != '' && format('NPM_REGISTRY={0}', vars.ARTIFACTORY_NPM_URL) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Emit quality-gate pipeline-run counter
+        if: always() && vars.PUSHGATEWAY_URL != ''
+        env:
+          PUSHGATEWAY_URL: ${{ vars.PUSHGATEWAY_URL }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          # Pass = every prior step in this job succeeded
+          PASSED=0
+          [[ "$OUTCOME" == "success" ]] && PASSED=1
+          curl --fail --silent --show-error \
+            --data-binary @- \
+            "${PUSHGATEWAY_URL}/metrics/job/pipeline/branch/${GITHUB_REF_NAME}" <<EOF
+          # TYPE pipeline_quality_gate_runs_total counter
+          pipeline_quality_gate_runs_total{repo="${GITHUB_REPOSITORY}",branch="${GITHUB_REF_NAME}",ci_system="github_actions"} 1
+          # TYPE pipeline_quality_gate_pass_total counter
+          pipeline_quality_gate_pass_total{repo="${GITHUB_REPOSITORY}",branch="${GITHUB_REF_NAME}",ci_system="github_actions"} ${PASSED}
+          EOF
+
+      - name: Push Helm chart to Artifactory
+        if: github.event_name != 'pull_request' && vars.ARTIFACTORY_HELM_REGISTRY != ''
+        run: |
+          helm registry login "${{ vars.ARTIFACTORY_HELM_REGISTRY }}" \
+            --username "${{ secrets.ARTIFACTORY_USER }}" \
+            --password "${{ secrets.ARTIFACTORY_TOKEN }}"
+          helm package charts/claude-mate-agent
+          helm push claude-mate-agent-*.tgz "oci://${{ vars.ARTIFACTORY_HELM_REGISTRY }}"

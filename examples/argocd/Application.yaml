@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: claude-mate-agent
+  namespace: argocd
+  annotations:
+    # Notify ArgoCD health check about the PodDisruptionBudget
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/your-org/claude-mate-agent.git
+    targetRevision: HEAD
+    path: charts/claude-mate-agent
+    helm:
+      releaseName: claude-mate-agent
+      valueFiles:
+        - values.yaml
+        - values-aks.yaml          # swap for values-openshift.yaml on OpenShift
+      values: |
+        image:
+          repository: ghcr.io/your-org/claude-mate-agent
+          tag: "1.0.0"
+        claudeCode:
+          apiKeySecretName: claude-mate-api-key
+        replicaCount: 2
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: claude-mate
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+
+  # Health assessment for Helm-managed resources
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas   # allow HPA to manage replica count

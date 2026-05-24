@@ -1,0 +1,55 @@
+# GitLab CI snippet: on-demand Claude Code task
+#
+# Add this job to your .gitlab-ci.yml.
+# Required masked CI/CD variables:
+#   ANTHROPIC_API_KEY  — masked + protected
+#   CLAUDE_TASK        — the task prompt (can be plain variable)
+#
+# The agent image must already be built and pushed to your registry.
+
+run:claude-task:
+  stage: on-demand
+  image:
+    name: "$CI_REGISTRY_IMAGE/claude-mate-agent:$CI_COMMIT_SHORT_SHA"
+    entrypoint: [""]
+  timeout: 30m
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  variables:
+    OPERATING_MODE: on-demand
+    TEAM_MATE_ROLE: operations          # operations | security | sre | architect
+    CLAUDE_TIMEOUT_SECONDS: "1800"
+    # ANTHROPIC_API_KEY: set as masked CI/CD variable
+    # CLAUDE_TASK: set as CI/CD variable, e.g. "review the diff and summarise risk"
+  script:
+    - /opt/claude-mate/agent --once
+  rules:
+    - when: manual
+      allow_failure: false
+
+# ── Parameterised variant: pass the task as a pipeline trigger variable ──────
+#
+# Trigger via API:
+#   curl --request POST \
+#     --form token=$CI_JOB_TOKEN \
+#     --form ref=main \
+#     --form "variables[CLAUDE_TASK]=analyse the security diff" \
+#     "https://gitlab.example.com/api/v4/projects/$PROJECT_ID/trigger/pipeline"
+
+run:claude-task-triggered:
+  stage: on-demand
+  image:
+    name: "$CI_REGISTRY_IMAGE/claude-mate-agent:$CI_COMMIT_SHORT_SHA"
+    entrypoint: [""]
+  timeout: 30m
+  variables:
+    OPERATING_MODE: on-demand
+    TEAM_MATE_ROLE: "$TEAM_MATE_ROLE"
+    CLAUDE_TIMEOUT_SECONDS: "1800"
+  script:
+    - /opt/claude-mate/agent --once
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $CLAUDE_TASK != ""'

@@ -1,0 +1,55 @@
+# Persona: Security Reviewer (on-demand, read-only)
+#
+# Performs OWASP Top 10, secrets, and dependency security review.
+# Tool set is restricted to Read + Bash only — no file modifications.
+# Mount the target repository at /workspace.
+#
+# Usage:
+#   helm upgrade --install claude-mate-security charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/personas/values-security.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 1
+
+teamMateRole: security
+operatingMode: on-demand
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 3600
+  workDir: /workspace
+  task: >
+    You are acting as the Security Reviewer for this repository.
+    Perform a full security assessment:
+    (1) Scan for hardcoded secrets, tokens, and credentials — mask any findings.
+    (2) Review dependencies (pyproject.toml, package.json, go.mod) for known CVEs.
+    (3) Review Dockerfile and Helm chart for container and Kubernetes security misconfigurations.
+    (4) Assess CI/CD pipelines for secret leakage and supply chain risks.
+    (5) Produce a risk-prioritised security report with CRITICAL / HIGH / MEDIUM / LOW findings.
+
+persona:
+  personasDir: /opt/claude-mate/personas
+
+# Extra hardening for the security persona container itself
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+openshell:
+  enabled: true
+  protectionMode: restricted
+  annotations:
+    openshell.io/protection: restricted
+    openshell.io/audit: enabled
+
+podDisruptionBudget:
+  enabled: false
+
+autoscaling:
+  enabled: false

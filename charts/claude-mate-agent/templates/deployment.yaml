@@ -1,0 +1,193 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "claude-mate-agent.fullname" . }}
+  labels:
+    {{- include "claude-mate-agent.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "claude-mate-agent.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      {{- $vaultInject := and .Values.vault.enabled .Values.vault.agentInjector.enabled }}
+      {{- if or (and .Values.openshell.enabled .Values.openshell.annotations) .Values.podAnnotations $vaultInject }}
+      annotations:
+        {{- if .Values.openshell.enabled }}
+        {{- toYaml .Values.openshell.annotations | nindent 8 }}
+        {{- end }}
+        {{- if $vaultInject }}
+        {{- include "claude-mate-agent.vaultAgentAnnotations" . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      labels:
+        {{- include "claude-mate-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+        claude-mate.io/operating-mode: {{ .Values.operatingMode | quote }}
+        claude-mate.io/team-mate-role: {{ .Values.teamMateRole | quote }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
+      serviceAccountName: {{ include "claude-mate-agent.serviceAccountName" . }}
+      {{- if .Values.nvidia.enabled }}
+      runtimeClassName: {{ .Values.nvidia.runtimeClassName }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: claude-mate-agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: OPERATING_MODE
+              value: {{ .Values.operatingMode | quote }}
+            - name: TEAM_MATE_ROLE
+              value: {{ .Values.teamMateRole | quote }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CONTAINER_NAME
+              value: claude-mate-agent
+            - name: REMOTE_LOG_SYNC_ENABLED
+              value: {{ .Values.audit.remoteLogSyncEnabled | quote }}
+            - name: REMOTE_LOG_DESTINATION
+              value: {{ .Values.audit.destination | quote }}
+            - name: OTEL_ENABLED
+              value: {{ .Values.otel.enabled | quote }}
+            {{- if .Values.otel.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+            - name: OTEL_EXPORT_INTERVAL_MILLIS
+              value: {{ .Values.otel.exportIntervalMillis | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ include "claude-mate-agent.fullname" . }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME)"
+            {{- end }}
+            - name: PERSONAS_DIR
+              value: {{ .Values.persona.personasDir | quote }}
+            - name: CLAUDE_TIMEOUT_SECONDS
+              value: {{ .Values.claudeCode.timeoutSeconds | quote }}
+            {{- if .Values.claudeCode.task }}
+            - name: CLAUDE_TASK
+              value: {{ .Values.claudeCode.task | quote }}
+            {{- end }}
+            {{- if .Values.claudeCode.workDir }}
+            - name: WORK_DIR
+              value: {{ .Values.claudeCode.workDir | quote }}
+            {{- end }}
+            {{- if .Values.claudeCode.baseUrl }}
+            - name: ANTHROPIC_BASE_URL
+              value: {{ .Values.claudeCode.baseUrl | quote }}
+            {{- end }}
+            {{- if .Values.claudeCode.apiVersion }}
+            - name: ANTHROPIC_API_VERSION
+              value: {{ .Values.claudeCode.apiVersion | quote }}
+            {{- end }}
+            {{- if .Values.claudeCode.apiKeySecretName }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.claudeCode.apiKeySecretName }}
+                  key: {{ .Values.claudeCode.apiKeySecretKey }}
+            {{- end }}
+            {{- if .Values.nvidia.enabled }}
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: {{ .Values.nvidia.driverCapabilities | quote }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
+          resources:
+            {{- if .Values.nvidia.enabled }}
+            requests:
+              {{- toYaml .Values.resources.requests | nindent 14 }}
+              nvidia.com/gpu: {{ .Values.nvidia.gpuCount }}
+            limits:
+              {{- toYaml .Values.resources.limits | nindent 14 }}
+              nvidia.com/gpu: {{ .Values.nvidia.gpuCount }}
+            {{- else }}
+            {{- toYaml .Values.resources | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- if or .Values.nodeSelector (and .Values.nvidia.enabled .Values.nvidia.nodeSelector) }}
+      nodeSelector:
+        {{- with .Values.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.nvidia.enabled }}
+        {{- toYaml .Values.nvidia.nodeSelector | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.tolerations (and .Values.nvidia.enabled .Values.nvidia.tolerations) }}
+      tolerations:
+        {{- with .Values.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.nvidia.enabled }}
+        {{- toYaml .Values.nvidia.tolerations | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,32 @@
+replicaCount: 1
+
+operatingMode: static
+teamMateRole: operations
+
+nvidia:
+  enabled: true
+  runtimeClassName: nvidia
+  gpuCount: 1
+  driverCapabilities: "compute,utility"
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 3600
+
+podDisruptionBudget:
+  enabled: false

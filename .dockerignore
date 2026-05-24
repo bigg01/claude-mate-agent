@@ -1,0 +1,5 @@
+.git
+.gitlab-ci.yml
+charts
+*.md
+*.tgz

@@ -1,0 +1,276 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "name": "Deploys",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "enable": true,
+        "iconColor": "#73BF69",
+        "expr": "changes(dora_deployments_total{status=\"ok\"}[1m]) > 0",
+        "titleFormat": "Deploy → {{env}}",
+        "tagKeys": "env,commit,ci_system"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "tags": ["dora", "devops", "sdlc"],
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Environment",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(dora_deployments_total, env)",
+        "query": {"query": "label_values(dora_deployments_total, env)", "refId": "Prometheus-env"},
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-30d", "to": "now"},
+  "timezone": "browser",
+  "title": "DORA Metrics",
+  "uid": "dora-metrics-v1",
+  "version": 1,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Headline DORA Four",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Deployment Frequency (per day, 7d)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(dora:deployments_per_day:7d{env=~\"$env\"})",
+          "legendFormat": "deploys/day"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 0.5},
+              {"color": "yellow", "value": 1},
+              {"color": "green", "value": 2}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "value", "graphMode": "area", "textMode": "auto"}
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Lead Time P50 (30d)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(dora:lead_time_seconds:p50:30d{env=~\"$env\"})",
+          "legendFormat": "p50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 3600},
+              {"color": "orange", "value": 14400},
+              {"color": "red", "value": 86400}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Change Failure Rate (30d)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(dora:change_failure_rate:30d{env=~\"$env\"})",
+          "legendFormat": "rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.05},
+              {"color": "orange", "value": 0.15},
+              {"color": "red", "value": 0.3}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Mean Time to Restore (30d)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(dora:mttr_seconds:30d{env=~\"$env\"})",
+          "legendFormat": "mttr"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 3600},
+              {"color": "orange", "value": 21600},
+              {"color": "red", "value": 86400}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+
+    {
+      "id": 2,
+      "type": "row",
+      "title": "Trends",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 6},
+      "collapsed": false
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Deployments per day",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 7},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (env) (dora:deployments_per_day:7d{env=~\"$env\"})",
+          "legendFormat": "{{env}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars"}}}
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Lead time (P50 vs P95)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 7},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(dora:lead_time_seconds:p50:30d{env=~\"$env\"})",
+          "legendFormat": "P50"
+        },
+        {
+          "refId": "B",
+          "expr": "avg(dora:lead_time_seconds:p95:30d{env=~\"$env\"})",
+          "legendFormat": "P95"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+
+    {
+      "id": 3,
+      "type": "row",
+      "title": "Quality Gates",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15},
+      "collapsed": false
+    },
+    {
+      "id": 30,
+      "type": "gauge",
+      "title": "Quality-gate pass rate (7d)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 16},
+      "targets": [
+        {"refId": "A", "expr": "quality_gate:pass_rate:7d"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 0.7},
+              {"color": "yellow", "value": 0.85},
+              {"color": "green", "value": 0.95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "CVE findings by severity (image scans)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 16},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (severity) (pipeline_cve_findings)",
+          "legendFormat": "{{severity}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Test coverage (%)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 16},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pipeline_test_coverage_percent",
+          "legendFormat": "coverage"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    }
+  ]
+}

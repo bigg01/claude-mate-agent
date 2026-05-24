@@ -1,0 +1,84 @@
+site_name: Claude Mate Agent
+site_description: Enterprise Kubernetes and OpenShift container platform for running Claude Code agents
+site_author: Claude Mate
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    # Dark first — futuristic look matches the hex/terminal logo.
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.tracking
+    - navigation.indexes
+    - toc.follow
+    - content.code.annotate
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+    - search.share
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quickstart: getting-started.md
+    - Local Development: local-dev.md
+  - Architecture:
+    - Solution Architecture: solution-architecture.md
+    - Container Internals: architecture.md
+    - Container Build: container.md
+    - Helm Chart: helm-chart.md
+  - Deployment:
+    - GitLab CI/CD: gitlab-ci.md
+    - GitHub Actions: github-actions.md
+    - Deploy via MCP: mcp-deploy.md
+  - Features:
+    - Personas: personas.md
+    - LLM Gateway: llm-gateway.md
+    - Sandboxes: sandbox.md
+  - Operations:
+    - Monitoring: monitoring.md
+    - Security & Compliance: security.md
+    - Security Scanning: security-scanning.md
+    - Quality Gates: quality-gates.md
+    - DORA Metrics: dora-metrics.md
+  - Examples: examples.md

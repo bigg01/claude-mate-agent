@@ -1,0 +1,19 @@
+# Docker Compose override — route all package pulls through Artifactory mirrors.
+#
+# Required environment variables (set in shell or a .env file):
+#   ARTIFACTORY_DOCKER_REGISTRY   Artifactory Docker repo, e.g. artifactory.example.com/docker-remote
+#   ARTIFACTORY_PYPI_URL          PyPI simple index,       e.g. https://artifactory.example.com/artifactory/api/pypi/pypi-virtual/simple
+#   ARTIFACTORY_NPM_URL           npm registry,            e.g. https://artifactory.example.com/artifactory/api/npm/npm-virtual/
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.artifactory.yml up --build
+
+services:
+  agent:
+    build:
+      args:
+        UBI9_IMAGE: "${ARTIFACTORY_DOCKER_REGISTRY}/ubi9/ubi:latest"
+        UBI9_MINIMAL_IMAGE: "${ARTIFACTORY_DOCKER_REGISTRY}/ubi9/ubi-minimal:latest"
+        UV_IMAGE: "${ARTIFACTORY_DOCKER_REGISTRY}/astral-sh/uv:latest"
+        PYPI_INDEX_URL: "${ARTIFACTORY_PYPI_URL:-}"
+        NPM_REGISTRY: "${ARTIFACTORY_NPM_URL:-}"

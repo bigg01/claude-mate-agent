@@ -1,0 +1,28 @@
+# LiteLLM Proxy — translates the Anthropic API to any backend (Gemini, Azure,
+# NVIDIA NIM, Bedrock, Vertex AI, etc.). Use this when you want one
+# Claude Code agent to be able to target non-Anthropic providers.
+#
+# Reference: https://docs.litellm.ai/docs/proxy/quick_start
+#
+# Secret prerequisite — store the LiteLLM master/virtual key (NOT a provider key):
+#   kubectl create secret generic litellm-key \
+#     --from-literal=ANTHROPIC_API_KEY=sk-litellm-...
+
+claudeCode:
+  apiKeySecretName: litellm-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  # LiteLLM exposes /v1 (OpenAI) and /anthropic (Anthropic-compatible) routes.
+  # Claude Code requires the Anthropic-compatible route.
+  baseUrl: "http://litellm.litellm.svc.cluster.local:4000/anthropic"
+  apiVersion: ""
+
+networkPolicy:
+  enabled: true
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: litellm
+      ports:
+        - protocol: TCP
+          port: 4000

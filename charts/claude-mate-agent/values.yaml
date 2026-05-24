@@ -1,0 +1,380 @@
+replicaCount: 2
+
+image:
+  repository: registry.example.com/claude-mate-agent
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+operatingMode: static
+teamMateRole: operations
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: claude-mate-agent.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gateway:
+  enabled: false
+  # createGateway: true provisions a Gateway resource in this namespace.
+  # createGateway: false attaches the HTTPRoute to an existing Gateway via parentRefs.
+  createGateway: false
+  gatewayClassName: ""
+  parentRefs:
+    - name: ""
+      namespace: ""
+  hostnames: []
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+
+route:
+  enabled: false
+  annotations: {}
+  host: ""
+  tls:
+    enabled: true
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+
+terminationGracePeriodSeconds: 30
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector: {}
+  egress: []
+
+otel:
+  enabled: false
+  endpoint: "http://otel-collector.monitoring.svc.cluster.local:4318"
+  exportIntervalMillis: 60000
+
+serviceMonitor:
+  enabled: false
+  labels: {}
+  interval: 30s
+  scrapeTimeout: 10s
+
+openshell:
+  enabled: true
+  protectionMode: restricted
+  annotations:
+    openshell.io/protection: restricted
+    openshell.io/audit: enabled
+
+audit:
+  remoteLogSyncEnabled: true
+  destination: ""
+
+claudeCode:
+  apiKeySecretName: ""
+  apiKeySecretKey: "ANTHROPIC_API_KEY"
+  task: ""
+  timeoutSeconds: 1800
+  # workDir: path inside the container where the repository is mounted.
+  # Leave empty to use the container's default working directory.
+  workDir: ""
+  # baseUrl: override ANTHROPIC_BASE_URL to route requests through an LLM gateway
+  # (Kong AI Gateway, LiteLLM, OpenRouter, Azure AI Foundry, etc.) or any
+  # Anthropic-compatible endpoint. Leave empty for direct Anthropic API access.
+  # See examples/llm-gateway/ for per-provider values overlays.
+  baseUrl: ""
+  # apiVersion: override ANTHROPIC_API_VERSION (required by Azure AI Foundry,
+  # some self-hosted gateways). Leave empty to use SDK defaults.
+  apiVersion: ""
+
+persona:
+  # personasDir: path to the directory containing <role>.md system-prompt files.
+  # Override if you mount a ConfigMap with custom persona definitions.
+  personasDir: /opt/claude-mate/personas
+
+env: []
+
+# ── NVIDIA Container Runtime ──────────────────────────────────────────────────
+# Enables GPU access via the NVIDIA Container Runtime (nvidia-container-toolkit).
+# Requires the NVIDIA GPU Operator or NVIDIA device plugin installed on the cluster.
+# https://github.com/NVIDIA/nvidia-container-toolkit
+nvidia:
+  enabled: false
+
+  # RuntimeClass registered by the NVIDIA GPU Operator (default: "nvidia").
+  runtimeClassName: nvidia
+
+  # Number of GPU devices requested per pod (applies to both requests and limits).
+  gpuCount: 1
+
+  # NVIDIA driver capabilities exposed inside the container.
+  # compute: CUDA + OpenCL  utility: nvidia-smi  video: NVDEC/NVENC
+  driverCapabilities: "compute,utility"
+
+  # Node selector added automatically when nvidia.enabled=true.
+  # The GPU Operator labels GPU nodes with nvidia.com/gpu.present=true.
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+
+  # Toleration for the nvidia.com/gpu taint that some clusters apply to GPU nodes.
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+topologySpreadConstraints: []
+
+# ── Claude Sandboxes ──────────────────────────────────────────────────────────
+# When enabled, the chart renders a Kubernetes Job (in addition to or instead of
+# the Deployment) that runs a single Claude task in an ephemeral, isolated
+# environment: strict egress allow-list, ephemeral workspace volume, hard time
+# limit, optional gVisor/Kata runtime, and auto-cleanup via ttlSecondsAfterFinished.
+#
+# Render just the sandbox Job for CI/CD use:
+#   helm template claude-mate-agent charts/claude-mate-agent \
+#     --set sandbox.enabled=true \
+#     --set sandbox.task="<prompt>" \
+#     --show-only templates/sandbox-job.yaml | kubectl create -f -
+sandbox:
+  enabled: false
+
+  # Task prompt passed to the agent at startup. Required when sandbox.enabled=true.
+  task: ""
+
+  # Persona / role for the sandboxed run (architect, security, devops, sre, operations).
+  teamMateRole: operations
+
+  # Optional kernel-level isolation. Requires a RuntimeClass named here installed
+  # in the cluster — typically "gvisor" (gVisor) or "kata" (Kata Containers).
+  # Leave empty to use the default container runtime.
+  runtimeClassName: ""
+
+  # Hard wall-clock cap on the sandbox Job. Pod is killed at expiry.
+  maxDurationSeconds: 1800
+
+  # Job is auto-deleted this many seconds after Complete/Failed.
+  ttlSecondsAfterFinished: 3600
+
+  # No retry — sandboxes are one-shot. Increase only if your task is idempotent.
+  backoffLimit: 0
+
+  # Ephemeral workspace mounted at /workspace for the agent to read/write.
+  workspace:
+    mountPath: /workspace
+    size: 1Gi
+    # storageClass: when set, uses a generic-ephemeral PVC instead of emptyDir.
+    # Leave empty to use emptyDir (faster, but capped by node disk).
+    storageClass: ""
+
+  # Sandbox-specific NetworkPolicy. Sandbox Jobs do not accept inbound traffic;
+  # egress is restricted to DNS plus the explicit destinations listed here.
+  # Append entries to allow access to your LLM gateway, git server, etc.
+  networkPolicy:
+    enabled: true
+    egress:
+      # DNS resolution (kube-dns/CoreDNS)
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+        ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+      # HTTPS to public endpoints (Anthropic, OpenRouter, Azure, Vertex AI).
+      # Tighten with ipBlock or namespaceSelector for in-cluster gateways.
+      - to:
+          - ipBlock:
+              cidr: 0.0.0.0/0
+              except:
+                - 10.0.0.0/8
+                - 172.16.0.0/12
+                - 192.168.0.0/16
+        ports:
+          - protocol: TCP
+            port: 443
+
+  # Hard resource caps on the sandbox container. Tighter than the static
+  # Deployment defaults — sandbox tasks should be short and predictable.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# ── cert-manager integration ──────────────────────────────────────────────────
+# Requires cert-manager (https://cert-manager.io) installed on the cluster.
+# Two integration modes:
+#   1. Explicit Certificate resource  — set certManager.enabled=true to render
+#      a cert-manager.io/v1 Certificate. The resulting Secret can be referenced
+#      from ingress.tls[].secretName, gateway listener TLS, or Route external
+#      certificate refs.
+#   2. ingress-shim annotations       — set certManager.ingressShim.enabled=true
+#      to let cert-manager auto-provision a Certificate from Ingress TLS hints.
+certManager:
+  enabled: false
+
+  # Existing Issuer or ClusterIssuer to sign the certificate.
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+  # Name of the Secret cert-manager will write the issued cert+key into.
+  # Defaults to "<fullname>-tls" when empty. Reference this from
+  # ingress.tls[0].secretName or the Gateway listener TLS config.
+  secretName: ""
+
+  # Subject of the certificate. dnsNames is required by cert-manager.
+  commonName: ""
+  dnsNames: []
+  # ipAddresses: []
+  # uris: []
+  # emailAddresses: []
+
+  # Optional lifetime and renewal window (Go duration strings, e.g. "2160h").
+  duration: ""
+  renewBefore: ""
+
+  # Private key options (algorithm: RSA|ECDSA|Ed25519, size: 2048|3072|4096|256|384|521).
+  privateKey:
+    algorithm: ""
+    size: 0
+    rotationPolicy: ""
+
+  # Extra annotations / labels applied to the Certificate resource.
+  annotations: {}
+  labels: {}
+
+  # ingress-shim — when enabled, adds cert-manager.io/cluster-issuer (or
+  # cert-manager.io/issuer) annotations to the Ingress so cert-manager
+  # auto-creates the Certificate. Use *instead of* the explicit Certificate
+  # resource above when you prefer ingress-shim's lifecycle.
+  ingressShim:
+    enabled: false
+
+# ── HashiCorp Vault integration ───────────────────────────────────────────────
+# Two supported integration paths — enable one or both:
+#   1. Vault Agent Injector — sidecar injection via pod annotations.
+#      https://developer.hashicorp.com/vault/docs/platform/k8s/injector
+#   2. Vault Secrets Operator (VSO) — sync Vault secrets into a K8s Secret via
+#      a VaultStaticSecret CRD. The resulting Secret can be referenced by
+#      claudeCode.apiKeySecretName (point it at vault.secretsOperator.destinationName).
+#      https://developer.hashicorp.com/vault/docs/platform/k8s/vso
+vault:
+  enabled: false
+
+  agentInjector:
+    enabled: false
+
+    # Vault role bound to the pod's ServiceAccount (vault write auth/kubernetes/role/<role>).
+    role: ""
+
+    # Map of secret name → vault path. Each entry renders as
+    # vault.hashicorp.com/agent-inject-secret-<name>: <path>
+    # The injected file lands at /vault/secrets/<name> inside the pod.
+    # Example:
+    #   secrets:
+    #     anthropic-key: secret/data/claude-mate/api
+    secrets: {}
+
+    # Map of secret name → Consul-Template body. Each entry renders as
+    # vault.hashicorp.com/agent-inject-template-<name>.
+    # Example:
+    #   templates:
+    #     anthropic-key: |
+    #       {{- with secret "secret/data/claude-mate/api" -}}
+    #       export ANTHROPIC_API_KEY="{{ .Data.data.key }}"
+    #       {{- end }}
+    templates: {}
+
+    # Run injection as init container only (true) vs sidecar (false).
+    initFirst: true
+    preInjectOnly: false
+
+    # Additional vault.hashicorp.com/* annotations (raw key/value pairs;
+    # the "vault.hashicorp.com/" prefix is added automatically if absent).
+    extraAnnotations: {}
+
+  secretsOperator:
+    enabled: false
+
+    # VaultAuth CR (namespace-local) used to authenticate to Vault.
+    vaultAuthRef: ""
+
+    # Vault KV mount and path of the source secret.
+    mount: secret
+    type: kv-v2
+    path: ""
+
+    # Polling interval for VSO to re-read the secret from Vault.
+    refreshAfter: 1h
+
+    # Name and type of the K8s Secret VSO will create. Defaults to
+    # "<fullname>-vault" when empty. Point claudeCode.apiKeySecretName at this
+    # value to feed the API key into the container.
+    destinationName: ""
+    secretType: Opaque
+
+    # Optional rollout restart trigger (deployment/<name>) on secret rotation.
+    rolloutRestartTargets: []

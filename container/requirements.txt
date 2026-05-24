@@ -1,0 +1,7 @@
+# Superseded by pyproject.toml — this file is kept for reference only.
+# The Dockerfile uses: uv sync --extra build --no-install-project
+#
+# To regenerate for tools that require a flat requirements file:
+#   cd container && uv export --no-dev -o requirements.txt
+opentelemetry-sdk==1.26.0
+opentelemetry-exporter-otlp-proto-http==1.26.0

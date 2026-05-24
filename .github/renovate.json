@@ -1,0 +1,116 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    "group:monorepos"
+  ],
+  "timezone": "Europe/Zurich",
+  "schedule": ["before 6am on Monday"],
+  "labels": ["dependencies"],
+  "reviewers": [],
+
+  "hostRules": [
+    {
+      "description": "Artifactory — authenticate Renovate lookups through your instance. Set RENOVATE_ARTIFACTORY_TOKEN in the Renovate bot's environment (or use the encrypted field for the GitHub App). Replace the matchHost value with your actual Artifactory hostname.",
+      "matchHost": "artifactory.example.com",
+      "username": "renovate-bot",
+      "tokenFromEnv": "RENOVATE_ARTIFACTORY_TOKEN"
+    }
+  ],
+
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "automerge": false
+    },
+    {
+      "description": "Group Python runtime dependencies",
+      "matchManagers": ["pep621", "pip_requirements"],
+      "matchDepTypes": ["dependencies"],
+      "groupName": "python-runtime-deps"
+    },
+    {
+      "description": "Python build-only tools (PyInstaller) — separate PR",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["optionalDependencies"],
+      "groupName": "python-build-tools"
+    },
+    {
+      "description": "Group Prometheus + Grafana Docker Compose images together",
+      "matchPackageNames": ["prom/prometheus", "grafana/grafana-oss"],
+      "groupName": "observability-images"
+    },
+    {
+      "description": "UBI base images — separate PR, manual merge",
+      "matchPackagePatterns": ["^registry.access.redhat.com/ubi"],
+      "groupName": "ubi-base-images",
+      "automerge": false
+    },
+    {
+      "description": "uv package manager pin in Dockerfile",
+      "matchPackageNames": ["ghcr.io/astral-sh/uv"],
+      "groupName": "uv"
+    }
+  ],
+
+  "pip_requirements": {
+    "fileMatch": ["(^|/)requirements.*\\.txt$"]
+  },
+
+  "pep621": {
+    "fileMatch": ["(^|/)pyproject\\.toml$"]
+  },
+
+  "dockerfile": {
+    "fileMatch": ["(^|/)Dockerfile$", "(^|/)Dockerfile\\..*$"]
+  },
+
+  "docker-compose": {
+    "fileMatch": ["(^|/)docker-compose.*\\.ya?ml$"]
+  },
+
+  "helm-values": {
+    "fileMatch": [
+      "charts/.+/values.*\\.ya?ml$",
+      "examples/.+/values.*\\.ya?ml$"
+    ]
+  },
+
+  "helmv3": {
+    "fileMatch": ["(^|/)Chart\\.yaml$"]
+  },
+
+  "github-actions": {
+    "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"]
+  },
+
+  "customManagers": [
+    {
+      "description": "CLAUDE_CODE_VERSION ARG in Dockerfile — tracks @anthropic-ai/claude-code on npm",
+      "customType": "regex",
+      "fileMatch": ["(^|/)Dockerfile$"],
+      "matchStrings": [
+        "ARG CLAUDE_CODE_VERSION=\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "@anthropic-ai/claude-code",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "npm"
+    },
+    {
+      "description": "HELM_VERSION env in GitHub Actions workflows",
+      "customType": "regex",
+      "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"],
+      "matchStrings": [
+        "HELM_VERSION: \"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "helm",
+      "datasourceTemplate": "github-releases",
+      "packageNameTemplate": "helm/helm",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ]
+}

@@ -1,0 +1,297 @@
+/* Claude Mate — dark / futuristic theme matching docs/assets/logo.svg.
+   Palette anchors:
+     #7C3AED  vivid purple   (logo hex gradient start, wordmark)
+     #2563EB  royal blue     (logo hex gradient end)
+     #A78BFA  lavender       (logo stroke / terminal prompt)
+     #C4B5FD  light lavender (vertex glow dots)
+     #60A5FA  cyan-blue      (cursor accent)
+     #0F172A  near-black     (inner panel start)
+     #1E1B4B  deep indigo    (inner panel end)
+*/
+
+:root {
+  --cm-purple: #7C3AED;
+  --cm-blue:   #2563EB;
+  --cm-lav:    #A78BFA;
+  --cm-lav-2:  #C4B5FD;
+  --cm-cyan:   #60A5FA;
+  --cm-ink:    #0F172A;
+  --cm-indigo: #1E1B4B;
+}
+
+/* ── Custom palette wiring for both light and dark schemes ───────────── */
+
+[data-md-color-scheme="slate"][data-md-color-primary="custom"] {
+  --md-primary-fg-color:               var(--cm-purple);
+  --md-primary-fg-color--light:        var(--cm-lav);
+  --md-primary-fg-color--dark:         #4C1D95;
+  --md-primary-bg-color:               #F5F3FF;
+  --md-primary-bg-color--light:        #EDE9FE;
+
+  --md-accent-fg-color:                var(--cm-cyan);
+  --md-accent-fg-color--transparent:   rgba(96, 165, 250, 0.1);
+  --md-accent-bg-color:                #F0F9FF;
+  --md-accent-bg-color--light:         #E0F2FE;
+
+  /* Deep, slightly cool background — closer to the logo's inner panel */
+  --md-default-bg-color:               #0B0F1F;
+  --md-default-bg-color--light:        #111634;
+  --md-default-bg-color--lighter:      #1A1F3D;
+  --md-default-bg-color--lightest:     #232950;
+
+  --md-default-fg-color:               #E5E7F0;
+  --md-default-fg-color--light:        #C7C9D9;
+  --md-default-fg-color--lighter:      #8B8FA8;
+  --md-default-fg-color--lightest:     #4A4D66;
+
+  --md-code-bg-color:                  #0A0D1C;
+  --md-code-fg-color:                  #E0E7FF;
+
+  --md-typeset-a-color:                var(--cm-lav);
+}
+
+[data-md-color-scheme="default"][data-md-color-primary="custom"] {
+  --md-primary-fg-color:               var(--cm-purple);
+  --md-primary-fg-color--light:        var(--cm-lav);
+  --md-primary-fg-color--dark:         #4C1D95;
+  --md-primary-bg-color:               #FFFFFF;
+  --md-primary-bg-color--light:        #F5F3FF;
+
+  --md-accent-fg-color:                var(--cm-blue);
+  --md-accent-fg-color--transparent:   rgba(37, 99, 235, 0.1);
+
+  --md-typeset-a-color:                var(--cm-purple);
+}
+
+/* ── Futuristic embellishments (dark scheme only) ─────────────────────── */
+
+[data-md-color-scheme="slate"] {
+  /* Subtle scan-grid backdrop, evokes the logo's panel + vertex lattice */
+  background-image:
+    radial-gradient(circle at 20% 0%,  rgba(124, 58, 237, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 80% 100%, rgba(37, 99, 235, 0.10) 0%, transparent 45%),
+    linear-gradient(180deg, var(--md-default-bg-color) 0%, #080B17 100%);
+  background-attachment: fixed;
+}
+
+/* Header — translucent with a purple→blue underline glow */
+[data-md-color-scheme="slate"] .md-header {
+  background: rgba(11, 15, 31, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.15);
+  box-shadow:
+    0 0 0 1px rgba(167, 139, 250, 0.05),
+    0 1px 0 0 transparent,
+    0 4px 24px rgba(124, 58, 237, 0.15);
+}
+
+[data-md-color-scheme="slate"] .md-tabs {
+  background: linear-gradient(90deg, var(--cm-purple) 0%, var(--cm-blue) 100%);
+  box-shadow: 0 2px 16px rgba(124, 58, 237, 0.25);
+}
+
+[data-md-color-scheme="slate"] .md-tabs__link {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+[data-md-color-scheme="slate"] .md-tabs__link--active,
+[data-md-color-scheme="slate"] .md-tabs__link:hover {
+  color: var(--cm-lav-2);
+  text-shadow: 0 0 12px rgba(196, 181, 253, 0.6);
+}
+
+/* Headings — uppercase mono, lavender glow on h1 mimicking the wordmark */
+[data-md-color-scheme="slate"] .md-typeset h1 {
+  color: var(--cm-lav-2);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 24px rgba(167, 139, 250, 0.35);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.2);
+  padding-bottom: 0.4em;
+}
+
+[data-md-color-scheme="slate"] .md-typeset h2 {
+  color: #DDD6FE;
+  border-left: 3px solid var(--cm-purple);
+  padding-left: 0.6em;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.08), transparent 60%);
+}
+
+[data-md-color-scheme="slate"] .md-typeset h3 {
+  color: var(--cm-lav);
+}
+
+/* Links — soft cyan glow on hover */
+[data-md-color-scheme="slate"] .md-typeset a {
+  color: var(--cm-lav);
+  transition: color 0.15s ease, text-shadow 0.15s ease;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a:hover {
+  color: var(--cm-cyan);
+  text-shadow: 0 0 8px rgba(96, 165, 250, 0.5);
+}
+
+/* Inline code — terminal lavender on near-black, matches logo prompt color */
+[data-md-color-scheme="slate"] .md-typeset code {
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--cm-lav-2);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-feature-settings: "ss01", "ss02", "cv01";
+}
+
+/* Fenced blocks — deeper background with a thin lavender hairline */
+[data-md-color-scheme="slate"] .md-typeset pre > code {
+  background: #060912;
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .highlight .filename,
+[data-md-color-scheme="slate"] .md-typeset code .filename {
+  background: linear-gradient(90deg, var(--cm-purple) 0%, var(--cm-blue) 100%);
+  color: #fff;
+}
+
+/* Admonitions — switch borders to the logo palette */
+[data-md-color-scheme="slate"] .md-typeset .admonition,
+[data-md-color-scheme="slate"] .md-typeset details {
+  border-color: rgba(167, 139, 250, 0.3);
+  background: rgba(30, 27, 75, 0.35);
+  backdrop-filter: blur(4px);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset summary {
+  background: rgba(124, 58, 237, 0.18);
+}
+
+/* Tables — subtle indigo zebra, lavender header rule */
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(167, 139, 250, 0.15);
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.25), rgba(37, 99, 235, 0.2));
+  color: var(--cm-lav-2);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) tr:nth-child(even) td {
+  background: rgba(30, 27, 75, 0.2);
+}
+
+/* Sidebar navigation — active item gets a left neon rail */
+[data-md-color-scheme="slate"] .md-nav__link--active,
+[data-md-color-scheme="slate"] .md-nav__item .md-nav__link--active {
+  color: var(--cm-lav-2);
+  font-weight: 600;
+}
+
+[data-md-color-scheme="slate"] .md-nav__item--active > .md-nav__link {
+  border-left: 2px solid var(--cm-purple);
+  padding-left: 0.6rem;
+  box-shadow: -2px 0 12px rgba(124, 58, 237, 0.4);
+}
+
+/* Search box — glassmorphic */
+[data-md-color-scheme="slate"] .md-search__form {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  backdrop-filter: blur(6px);
+}
+
+[data-md-color-scheme="slate"] .md-search__form:hover,
+[data-md-color-scheme="slate"] [data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--cm-lav);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.2);
+}
+
+/* Footer — subtle gradient rule */
+[data-md-color-scheme="slate"] .md-footer {
+  background: linear-gradient(180deg, #080B17 0%, #050710 100%);
+  border-top: 1px solid rgba(167, 139, 250, 0.15);
+}
+
+[data-md-color-scheme="slate"] .md-footer-meta {
+  background: transparent;
+}
+
+/* Scrollbar — match the palette in WebKit browsers */
+[data-md-color-scheme="slate"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-track {
+  background: #080B17;
+}
+
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--cm-purple), var(--cm-blue));
+  border-radius: 5px;
+  border: 2px solid #080B17;
+}
+
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--cm-lav), var(--cm-cyan));
+}
+
+/* Selection — purple wash */
+[data-md-color-scheme="slate"] ::selection {
+  background: rgba(124, 58, 237, 0.4);
+  color: #fff;
+}
+
+/* ── Full-width layout ─────────────────────────────────────────────────
+   Material caps .md-grid at 61rem (~976px). Override to 100% so the
+   header, nav, content, and footer fill the viewport. Cap at 1800px to
+   keep line lengths readable on ultrawide monitors — bump if you want
+   true edge-to-edge.
+*/
+.md-grid {
+  max-width: 100%;
+}
+
+.md-main__inner,
+.md-header__inner,
+.md-tabs__inner,
+.md-footer-meta__inner,
+.md-footer__inner {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Give the prose a sane reading width inside the wider grid — the rest
+   of the row becomes breathing room for code blocks and tables which
+   benefit from the extra horizontal space. */
+.md-content {
+  max-width: none;
+}
+
+.md-content__inner {
+  max-width: 64rem;
+}
+
+/* Code blocks, tables, and admonitions are allowed to use the full
+   content width — they read better wide. */
+.md-content__inner .highlight,
+.md-content__inner pre,
+.md-content__inner .tabbed-set,
+.md-content__inner table,
+.md-content__inner .admonition,
+.md-content__inner details {
+  max-width: none;
+}

@@ -1,0 +1,27 @@
+# Google Gemini — via either Vertex AI's Anthropic-compatible Claude endpoint
+# (Anthropic models hosted on Google Cloud) or LiteLLM in front of native Gemini.
+#
+# Option A — Vertex AI Anthropic endpoint (Claude on GCP, no translation needed):
+#   https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
+#
+# Option B — Native Gemini models via LiteLLM:
+#   model_name: claude-3-5-sonnet-20241022
+#   litellm_params:
+#     model: gemini/gemini-2.0-flash-exp
+#     api_key: os.environ/GOOGLE_API_KEY
+#
+# Secret prerequisite:
+#   kubectl create secret generic gemini-key \
+#     --from-literal=ANTHROPIC_API_KEY=<token>
+
+claudeCode:
+  apiKeySecretName: gemini-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+
+  # Option A: Vertex AI Claude endpoint (replace project + region):
+  baseUrl: "https://us-east5-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations/us-east5/publishers/anthropic/models/"
+
+  # Option B: LiteLLM proxy translating to native Gemini:
+  # baseUrl: "http://litellm-gemini.litellm.svc.cluster.local:4000/anthropic"
+
+  apiVersion: ""

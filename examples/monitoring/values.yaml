@@ -1,0 +1,52 @@
+# Example: Full observability — ServiceMonitor + OTEL export
+#
+# Usage:
+#   helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/monitoring/values.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 2
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+
+# Prometheus Operator ServiceMonitor
+# Requires monitoring.coreos.com/v1 CRD in the cluster
+serviceMonitor:
+  enabled: true
+  labels:
+    # Match the label selector of your Prometheus instance
+    release: prometheus
+  interval: 30s
+  scrapeTimeout: 10s
+
+# OpenTelemetry export (opt-in)
+# Set endpoint to your OTEL collector's OTLP HTTP receiver
+otel:
+  enabled: true
+  endpoint: "http://otel-collector.monitoring.svc.cluster.local:4318"
+  exportIntervalMillis: 60000
+
+# Restrict egress to: Anthropic API + OTEL collector + DNS
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: monitoring
+  egress:
+    - ports:
+        - port: 443         # Anthropic API
+    - ports:
+        - port: 4318        # OTEL collector
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 4318
+    - ports:
+        - port: 53
+          protocol: UDP     # DNS

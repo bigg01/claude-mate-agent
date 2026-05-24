@@ -1,0 +1,22 @@
+# OpenRouter — multi-provider model routing with an Anthropic-compatible API.
+# Useful for accessing Claude, GPT, Llama, Mistral, etc. through one billing account.
+#
+# Reference: https://openrouter.ai/docs/quickstart
+#
+# Secret prerequisite:
+#   kubectl create secret generic openrouter-key \
+#     --from-literal=ANTHROPIC_API_KEY=sk-or-v1-...
+
+claudeCode:
+  apiKeySecretName: openrouter-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  # OpenRouter exposes an Anthropic-compatible endpoint:
+  baseUrl: "https://openrouter.ai/api/v1"
+  apiVersion: ""
+
+# OpenRouter requires Referer and X-Title for analytics + free-tier routing.
+env:
+  - name: OPENROUTER_REFERER
+    value: "https://github.com/your-org/claude-mate-agent"
+  - name: OPENROUTER_TITLE
+    value: "Claude Mate Agent"

@@ -1,0 +1,14 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: claude-mate-agent
+  namespace: flux-system
+spec:
+  # Point at your OCI registry or Helm HTTP repository.
+  # For a GitHub Pages Helm repo:
+  type: default
+  url: https://your-org.github.io/claude-mate-agent
+  interval: 10m
+  # For an OCI registry (e.g. GHCR):
+  # type: oci
+  # url: oci://ghcr.io/your-org/charts

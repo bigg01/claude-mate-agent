@@ -1,0 +1,20 @@
+# Docker Compose override for NVIDIA GPU access.
+# Requires nvidia-container-toolkit installed and configured on the host.
+# https://github.com/NVIDIA/nvidia-container-toolkit
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up
+
+services:
+  agent:
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

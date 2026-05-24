@@ -1,0 +1,37 @@
+# Helm renders and packaged charts
+aks-rendered.yaml
+openshift-rendered.yaml
+*.tgz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# uv virtual environment (local IDE use only; uv.lock IS committed)
+container/.venv/
+
+# Kubeconfig files written by CI/CD jobs
+.kube/
+
+# MkDocs generated site
+site/
+
+# Docker Compose overrides (local only)
+docker-compose.override.yml
+
+# Grafana and Prometheus local data
+grafana/data/
+prometheus/data/
+
+# Editor and OS
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.lnk
+
+# Windows PowerShell
+*.ps1.bak

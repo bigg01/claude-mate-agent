@@ -1,0 +1,60 @@
+# Example: Gateway API with HTTPRoute attached to an existing shared Gateway
+# Usage:
+#   helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/gateway-api/values.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 2
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+
+ingress:
+  enabled: false
+
+route:
+  enabled: false
+
+gateway:
+  enabled: true
+  createGateway: false       # attach to a pre-existing Gateway
+  parentRefs:
+    - name: shared-gateway   # name of the Gateway in your cluster
+      namespace: gateway-system
+  hostnames:
+    - claude-mate-agent.example.com
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  egress:
+    - ports:
+        - port: 443
+    - ports:
+        - port: 53
+          protocol: UDP
+
+---
+# To create a dedicated Gateway instead, use these overrides:
+#
+# gateway:
+#   enabled: true
+#   createGateway: true
+#   gatewayClassName: nginx         # or: envoy-gateway, cilium, alb (AKS)
+#   hostnames:
+#     - claude-mate-agent.example.com
+#   listeners:
+#     - name: https
+#       port: 443
+#       protocol: HTTPS
+#       tls:
+#         mode: Terminate
+#         certificateRefs:
+#           - kind: Secret
+#             name: claude-mate-agent-tls

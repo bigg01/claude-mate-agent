@@ -1,0 +1,21 @@
+# Gitleaks configuration — extends the default ruleset.
+# Run locally: `gitleaks detect --config .gitleaks.toml --verbose`
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Repository-specific false positives"
+paths = [
+  '''container/tests/.*''',
+  '''examples/.*/values.*\.yaml''',
+  '''charts/claude-mate-agent/values.*\.yaml''',
+  '''docs/.*\.md''',
+  '''.gitleaks\.toml''',
+]
+regexes = [
+  # Placeholder Anthropic-style strings in docs and examples
+  '''sk-ant-\.\.\.''',
+  '''sk-or-v1-\.\.\.''',
+  '''sk-litellm-\.\.\.''',
+]

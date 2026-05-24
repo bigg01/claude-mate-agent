@@ -1,0 +1,249 @@
+<mxfile host="Claude Mate Agent" modified="2026-05-24" agent="claude-mate" version="24.0.0" type="device">
+  <diagram id="solution-architecture" name="Solution Architecture">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- TITLE                                                           -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <mxCell id="title" value="Claude Mate Agent — Solution Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#1E1B4B;" vertex="1" parent="1">
+          <mxGeometry x="427" y="20" width="800" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DEVELOPER / OPERATOR (left side)                               -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <mxCell id="dev-box" value="Developer / Operator" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="220" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="dev-icon" value="👤 Developer" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=13;" vertex="1" parent="dev-box">
+          <mxGeometry x="10" y="40" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="makefile-icon" value="Makefile&#xa;make build / run / run-once" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="dev-box">
+          <mxGeometry x="20" y="85" width="180" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="helm-icon" value="Helm Chart&#xa;helm upgrade --install" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="dev-box">
+          <mxGeometry x="20" y="140" width="180" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- GITLAB CI/CD                                                    -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <mxCell id="gitlab-box" value="GitLab CI/CD" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#333333;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="220" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="stage-validate" value="validate:helm&#xa;helm lint + render" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="gitlab-box">
+          <mxGeometry x="15" y="40" width="190" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="stage-build" value="build:image&#xa;Buildah → registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="gitlab-box">
+          <mxGeometry x="15" y="85" width="190" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="stage-package" value="package:helm&#xa;helm package" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="gitlab-box">
+          <mxGeometry x="15" y="130" width="190" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="stage-deploy" value="deploy:aks / deploy:openshift&#xa;helm upgrade --install" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="gitlab-box">
+          <mxGeometry x="15" y="175" width="190" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="stage-ondemand" value="run:on-demand-agent&#xa;--once  CLAUDE_TASK" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="gitlab-box">
+          <mxGeometry x="15" y="230" width="190" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- CONTAINER REGISTRY                                              -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <mxCell id="registry-box" value="Container Registry" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ecr;labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;fillColor=#E01A4F;strokeColor=none;fontColor=#1E1B4B;" vertex="1" parent="1">
+          <mxGeometry x="360" y="350" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="registry-label" value="Image Registry&#xa;(GitLab / enterprise)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="415" width="120" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- KUBERNETES / OPENSHIFT CLUSTER                                  -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <mxCell id="cluster-box" value="Kubernetes / OpenShift Cluster" style="swimlane;startSize=35;fillColor=#f0f4ff;strokeColor=#5B21B6;fontColor=#1E1B4B;fontStyle=1;fontSize=12;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="80" width="860" height="680" as="geometry"/>
+        </mxCell>
+
+        <!-- Namespace -->
+        <mxCell id="ns-box" value="Namespace: claude-mate" style="swimlane;startSize=25;fillColor=#e8e0f8;strokeColor=#7C3AED;fontColor=#5B21B6;fontStyle=1;fontSize=11;dashed=1;" vertex="1" parent="cluster-box">
+          <mxGeometry x="20" y="50" width="820" height="580" as="geometry"/>
+        </mxCell>
+
+        <!-- Deployment -->
+        <mxCell id="deployment-box" value="Deployment: claude-mate-agent" style="swimlane;startSize=25;fillColor=#f3e8ff;strokeColor=#9333EA;fontColor=#7C3AED;fontStyle=1;fontSize=10;" vertex="1" parent="ns-box">
+          <mxGeometry x="20" y="35" width="580" height="500" as="geometry"/>
+        </mxCell>
+
+        <!-- Pod -->
+        <mxCell id="pod-box" value="Pod" style="swimlane;startSize=22;fillColor=#faf5ff;strokeColor=#9333EA;fontColor=#7C3AED;fontSize=10;" vertex="1" parent="deployment-box">
+          <mxGeometry x="20" y="40" width="540" height="430" as="geometry"/>
+        </mxCell>
+
+        <!-- agent binary -->
+        <mxCell id="agent-container" value="&lt;b&gt;agent&lt;/b&gt; (compiled binary)&#xa;PyInstaller · Python 3&#xa;/healthz  /readyz  /metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7C3AED;strokeColor=#5B21B6;fontColor=#ffffff;fontSize=11;" vertex="1" parent="pod-box">
+          <mxGeometry x="30" y="40" width="220" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- claude CLI -->
+        <mxCell id="claude-container" value="&lt;b&gt;claude CLI&lt;/b&gt; (Node.js)&#xa;@anthropic-ai/claude-code&#xa;claude --print $CLAUDE_TASK" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2563EB;strokeColor=#1D4ED8;fontColor=#ffffff;fontSize=11;" vertex="1" parent="pod-box">
+          <mxGeometry x="290" y="40" width="220" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- subprocess arrow -->
+        <mxCell id="subprocess-arrow" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#5B21B6;strokeWidth=2;" edge="1" source="agent-container" target="claude-container" parent="pod-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="subprocess-label" value="subprocess" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=9;fontColor=#5B21B6;" vertex="1" parent="pod-box">
+          <mxGeometry x="245" y="65" width="55" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- emptyDir /tmp -->
+        <mxCell id="tmpvol" value="/tmp (emptyDir)&#xa;PyInstaller extraction&#xa;Claude Code config (HOME=/tmp)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0277bd;fontSize=10;" vertex="1" parent="pod-box">
+          <mxGeometry x="150" y="170" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Secret -->
+        <mxCell id="secret-box" value="🔐 Secret&#xa;ANTHROPIC_API_KEY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=1;" vertex="1" parent="pod-box">
+          <mxGeometry x="150" y="270" width="220" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Security context annotations -->
+        <mxCell id="secctx" value="SecurityContext&#xa;runAsNonRoot · readOnlyRootFS&#xa;drop ALL caps · seccomp RuntimeDefault" style="text;html=1;strokeColor=#9333EA;fillColor=#faf5ff;align=center;fontSize=9;rounded=1;" vertex="1" parent="pod-box">
+          <mxGeometry x="30" y="360" width="480" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- HPA -->
+        <mxCell id="hpa-box" value="HPA&#xa;min 2 → max 5 replicas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="ns-box">
+          <mxGeometry x="620" y="50" width="170" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- PDB -->
+        <mxCell id="pdb-box" value="PodDisruptionBudget&#xa;minAvailable: 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="ns-box">
+          <mxGeometry x="620" y="120" width="170" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Service -->
+        <mxCell id="svc-box" value="Service (ClusterIP)&#xa;port 80 → 8080" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="ns-box">
+          <mxGeometry x="620" y="195" width="170" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- NetworkPolicy -->
+        <mxCell id="netpol-box" value="NetworkPolicy&#xa;ingress + egress rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="ns-box">
+          <mxGeometry x="620" y="265" width="170" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- RBAC -->
+        <mxCell id="rbac-box" value="ServiceAccount + RBAC&#xa;get/list/watch pods" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="ns-box">
+          <mxGeometry x="620" y="335" width="170" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Routing options -->
+        <mxCell id="routing-box" value="Routing (choose one)" style="swimlane;startSize=22;fillColor=#fff8e6;strokeColor=#d6b656;fontColor=#333333;fontStyle=1;fontSize=10;" vertex="1" parent="ns-box">
+          <mxGeometry x="20" y="555" width="780" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- Ingress -->
+        <mxCell id="ingress-box" value="Ingress (AKS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="cluster-box">
+          <mxGeometry x="50" y="595" width="150" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Route -->
+        <mxCell id="route-box" value="Route (OpenShift)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="cluster-box">
+          <mxGeometry x="235" y="595" width="150" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- HTTPRoute -->
+        <mxCell id="httproute-box" value="HTTPRoute (Gateway API)&#xa;+ Gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0277bd;fontSize=10;" vertex="1" parent="cluster-box">
+          <mxGeometry x="420" y="595" width="160" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- OBSERVABILITY STACK                                             -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <mxCell id="obs-box" value="Observability" style="swimlane;startSize=30;fillColor=#e8f5e9;strokeColor=#388e3c;fontColor=#1b5e20;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="80" width="210" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="prometheus-box" value="Prometheus&#xa;ServiceMonitor scrape" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;fontSize=10;" vertex="1" parent="obs-box">
+          <mxGeometry x="15" y="45" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="grafana-box" value="Grafana&#xa;Dashboards + Alerts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;fontSize=10;" vertex="1" parent="obs-box">
+          <mxGeometry x="15" y="110" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="otel-box" value="OTEL Collector&#xa;OTLP HTTP :4318" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;fontSize=10;" vertex="1" parent="obs-box">
+          <mxGeometry x="15" y="175" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="siem-box" value="SIEM / Log Platform&#xa;Splunk · OpenSearch · Syslog" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;fontSize=10;" vertex="1" parent="obs-box">
+          <mxGeometry x="15" y="240" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="logging-box" value="Enterprise Log Stack&#xa;stdout/stderr JSON" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;fontSize=10;" vertex="1" parent="obs-box">
+          <mxGeometry x="15" y="310" width="180" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- EXTERNAL                                                        -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <mxCell id="anthropic-box" value="Anthropic API&#xa;api.anthropic.com (HTTPS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E1B4B;strokeColor=#5B21B6;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="510" width="210" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- OpenShell -->
+        <mxCell id="openshell-box" value="OpenShell Protection&#xa;Break-glass · Session audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="600" width="210" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- EDGES / CONNECTIONS                                             -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+
+        <!-- Developer → build → Registry -->
+        <mxCell id="e-dev-reg" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="dev-box" target="registry-label" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- GitLab build → Registry -->
+        <mxCell id="e-gl-reg" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1.5;" edge="1" source="stage-build" target="registry-label" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Registry → Cluster (image pull) -->
+        <mxCell id="e-reg-cluster" value="image pull" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5B21B6;strokeWidth=2;dashed=1;" edge="1" source="registry-label" target="cluster-box" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Developer Helm → Cluster deploy -->
+        <mxCell id="e-helm-cluster" value="deploy" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;" edge="1" source="helm-icon" target="cluster-box" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- GitLab deploy → Cluster -->
+        <mxCell id="e-gl-cluster" value="helm upgrade" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1.5;" edge="1" source="stage-deploy" target="cluster-box" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- agent → Prometheus -->
+        <mxCell id="e-agent-prom" value="/metrics" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#388e3c;strokeWidth=1.5;dashed=1;" edge="1" source="agent-container" target="prometheus-box" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- agent → OTEL -->
+        <mxCell id="e-agent-otel" value="OTLP (opt-in)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#388e3c;strokeWidth=1.5;dashed=1;" edge="1" source="agent-container" target="otel-box" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- agent → SIEM (logs) -->
+        <mxCell id="e-agent-siem" value="stdout/stderr JSON" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#388e3c;strokeWidth=1.5;dashed=1;" edge="1" source="agent-container" target="logging-box" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- claude → Anthropic API -->
+        <mxCell id="e-claude-api" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5B21B6;strokeWidth=2;" edge="1" source="claude-container" target="anthropic-box" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

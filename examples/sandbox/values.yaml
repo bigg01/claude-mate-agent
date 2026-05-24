@@ -1,0 +1,82 @@
+# Claude Sandbox — ephemeral, isolated, one-shot task execution.
+#
+# Render and submit to your cluster:
+#   helm template claude-mate-agent charts/claude-mate-agent \
+#     -f examples/sandbox/values.yaml \
+#     --set sandbox.task="Review the auth middleware for OWASP issues" \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key \
+#     --show-only templates/sandbox-job.yaml \
+#     --show-only templates/sandbox-networkpolicy.yaml \
+#   | kubectl create -n claude-mate-sandbox -f -
+
+# Sandbox Jobs do not run as a long-lived service.
+replicaCount: 0
+podDisruptionBudget:
+  enabled: false
+autoscaling:
+  enabled: false
+
+# Disable the always-on Deployment's NetworkPolicy — the sandbox has its own.
+networkPolicy:
+  enabled: false
+
+sandbox:
+  enabled: true
+
+  # Override via --set sandbox.task=... at submit time.
+  task: "Describe the repository layout in three sentences."
+
+  teamMateRole: operations
+
+  # gVisor / Kata recommended for untrusted-task isolation. Leave empty if
+  # the cluster does not provide a sandboxed RuntimeClass.
+  runtimeClassName: ""
+
+  maxDurationSeconds: 1800        # 30 min wall-clock cap
+  ttlSecondsAfterFinished: 3600   # auto-delete 1h after completion
+  backoffLimit: 0                 # no retry
+
+  workspace:
+    mountPath: /workspace
+    size: 1Gi
+    storageClass: ""
+
+  networkPolicy:
+    enabled: true
+    egress:
+      # DNS
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+        ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+      # HTTPS to LLM provider (Anthropic, OpenRouter, Azure, etc.)
+      # Pin to specific egress rules in production.
+      - to:
+          - ipBlock:
+              cidr: 0.0.0.0/0
+              except:
+                - 10.0.0.0/8
+                - 172.16.0.0/12
+                - 192.168.0.0/16
+        ports:
+          - protocol: TCP
+            port: 443
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+claudeCode:
+  # Set --set claudeCode.apiKeySecretName=<your-secret> at submit time.
+  apiKeySecretName: ""
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  baseUrl: ""

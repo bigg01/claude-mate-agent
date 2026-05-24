@@ -1,0 +1,35 @@
+# Kong AI Gateway — routes Anthropic-format requests to one or more backends
+# via the `ai-proxy` plugin. The gateway exposes an Anthropic-compatible endpoint;
+# Claude Code sends standard Anthropic requests to it.
+#
+# Reference: https://docs.konghq.com/hub/kong-inc/ai-proxy/
+#
+# Secret prerequisite — store the Kong consumer's API key (NOT the Anthropic key):
+#   kubectl create secret generic kong-consumer-key \
+#     --from-literal=ANTHROPIC_API_KEY=<kong-consumer-credential>
+
+claudeCode:
+  apiKeySecretName: kong-consumer-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  # Point at your Kong AI Gateway route. Common patterns:
+  #   https://kong.example.com/anthropic
+  #   http://kong-gateway-proxy.kong.svc.cluster.local:8000/anthropic
+  baseUrl: "https://kong-gateway.example.com/anthropic"
+  apiVersion: ""
+
+# Kong-specific headers (consumer ID, route metadata) — passed through if your
+# ai-proxy plugin requires them. Add only what your Kong route is configured for.
+env:
+  - name: HTTP_X_KONG_CONSUMER
+    value: "claude-mate-agent"
+
+networkPolicy:
+  enabled: true
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kong
+      ports:
+        - protocol: TCP
+          port: 8000

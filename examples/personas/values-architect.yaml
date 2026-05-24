@@ -1,0 +1,46 @@
+# Persona: Solution Architect (on-demand)
+#
+# Reviews the repository architecture and produces findings + ADRs.
+# Mount the target repository at /workspace.
+#
+# Usage:
+#   helm upgrade --install claude-mate-architect charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/personas/values-architect.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 1
+
+teamMateRole: architect
+operatingMode: on-demand
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 3600
+  workDir: /workspace
+  task: >
+    You are acting as the Solution Architect for this repository.
+    Perform a structured architecture review:
+    (1) Read all architecture and design documentation.
+    (2) Map the major components and their dependencies.
+    (3) Identify the top three architectural risks with severity and recommended remediation.
+    (4) Create an ADR in docs/adr/ for any decision that requires documentation.
+    Produce a final executive summary suitable for a technical steering committee.
+
+persona:
+  personasDir: /opt/claude-mate/personas
+
+openshell:
+  enabled: true
+  protectionMode: restricted
+  annotations:
+    openshell.io/protection: restricted
+    openshell.io/audit: enabled
+
+podDisruptionBudget:
+  enabled: false
+
+autoscaling:
+  enabled: false

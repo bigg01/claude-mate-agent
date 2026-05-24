@@ -1,0 +1,47 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "claude-mate-agent.fullname" . }}
+  labels:
+    {{- include "claude-mate-agent.labels" . | nindent 4 }}
+  {{- $cmShim := and .Values.certManager.enabled .Values.certManager.ingressShim.enabled }}
+  {{- if or .Values.ingress.annotations $cmShim }}
+  annotations:
+    {{- if $cmShim }}
+    {{- if eq (.Values.certManager.issuerRef.kind | default "ClusterIssuer") "ClusterIssuer" }}
+    cert-manager.io/cluster-issuer: {{ .Values.certManager.issuerRef.name | quote }}
+    {{- else }}
+    cert-manager.io/issuer: {{ .Values.certManager.issuerRef.name | quote }}
+    cert-manager.io/issuer-kind: {{ .Values.certManager.issuerRef.kind | quote }}
+    cert-manager.io/issuer-group: {{ .Values.certManager.issuerRef.group | default "cert-manager.io" | quote }}
+    {{- end }}
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "claude-mate-agent.fullname" $ }}
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+{{- end }}

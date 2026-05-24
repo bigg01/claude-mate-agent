@@ -1,0 +1,112 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [aks, openshift]
+      image_tag:
+        description: Image tag to deploy (e.g. abc1234 or latest)
+        required: true
+        default: latest
+      namespace:
+        description: Kubernetes namespace
+        required: false
+        default: claude-mate
+
+env:
+  # Default registry — overridden by ARTIFACTORY_DOCKER_REGISTRY repo variable when set.
+  REGISTRY: ${{ vars.ARTIFACTORY_DOCKER_REGISTRY != '' && vars.ARTIFACTORY_DOCKER_REGISTRY || 'ghcr.io' }}
+  IMAGE_NAME: ${{ github.repository }}/claude-mate-agent
+  HELM_VERSION: "3.15.4"
+  HELM_RELEASE: claude-mate-agent
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    concurrency:
+      group: deploy-${{ github.event.inputs.environment }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Log in to Artifactory registry
+        if: vars.ARTIFACTORY_DOCKER_REGISTRY != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.ARTIFACTORY_DOCKER_REGISTRY }}
+          username: ${{ secrets.ARTIFACTORY_USER }}
+          password: ${{ secrets.ARTIFACTORY_TOKEN }}
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_B64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+
+      - name: Deploy
+        run: |
+          helm upgrade --install "${{ env.HELM_RELEASE }}" charts/claude-mate-agent \
+            --namespace "${{ github.event.inputs.namespace }}" \
+            --create-namespace \
+            -f "charts/claude-mate-agent/values-${{ github.event.inputs.environment }}.yaml" \
+            --set image.repository="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" \
+            --set image.tag="${{ github.event.inputs.image_tag }}" \
+            --set claudeCode.apiKeySecretName="${{ vars.CLAUDE_API_KEY_SECRET_NAME || 'claude-mate-api-key' }}" \
+            --atomic \
+            --timeout 5m
+
+      - name: Verify rollout
+        id: rollout
+        run: |
+          kubectl rollout status deployment/"${{ env.HELM_RELEASE }}" \
+            --namespace "${{ github.event.inputs.namespace }}" \
+            --timeout 5m
+
+      - name: Compute lead time (first-commit → deploy)
+        if: always()
+        id: lead
+        run: |
+          set -euo pipefail
+          # Lead time = now - PushedAt(commit). For tag/manual deploys this
+          # is an over-estimate; the recording rules normalise via quantiles.
+          COMMIT_TS=$(git -C . log -1 --format=%ct "${{ github.event.inputs.image_tag }}" 2>/dev/null \
+            || git log -1 --format=%ct HEAD)
+          NOW=$(date -u +%s)
+          LEAD=$((NOW - COMMIT_TS))
+          [[ $LEAD -lt 0 ]] && LEAD=0
+          echo "seconds=${LEAD}" >> "$GITHUB_OUTPUT"
+
+      - name: Emit DORA deploy event
+        if: always() && vars.PUSHGATEWAY_URL != ''
+        env:
+          PUSHGATEWAY_URL: ${{ vars.PUSHGATEWAY_URL }}
+          CI_SYSTEM: github_actions
+        run: |
+          STATUS=ok
+          [[ "${{ steps.rollout.outcome }}" != "success" ]] && STATUS=failed
+          ./scripts/dora-emit.sh deploy \
+            --env "${{ github.event.inputs.environment }}" \
+            --status "$STATUS" \
+            --commit "${{ github.sha }}" \
+            --lead-time-seconds "${{ steps.lead.outputs.seconds }}"
+
+          if [[ "$STATUS" == "failed" ]]; then
+            ./scripts/dora-emit.sh failure \
+              --env "${{ github.event.inputs.environment }}" \
+              --service claude-mate-agent \
+              --commit "${{ github.sha }}"
+          fi

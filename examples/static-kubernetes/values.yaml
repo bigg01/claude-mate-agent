@@ -1,0 +1,67 @@
+# Example: Static Kubernetes deployment with Nginx Ingress
+# Usage:
+#   helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+#     --namespace claude-mate --create-namespace \
+#     -f examples/static-kubernetes/values.yaml \
+#     --set image.repository=ghcr.io/your-org/claude-mate-agent \
+#     --set image.tag=latest \
+#     --set claudeCode.apiKeySecretName=claude-mate-api-key
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/your-org/claude-mate-agent
+  tag: latest
+  pullPolicy: Always
+
+claudeCode:
+  apiKeySecretName: claude-mate-api-key
+  timeoutSeconds: 1800
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: claude-mate-agent.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: claude-mate-agent-tls
+      hosts:
+        - claude-mate-agent.example.com
+
+route:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    - ports:
+        - port: 443   # Anthropic API
+    - ports:
+        - port: 53
+          protocol: UDP  # DNS

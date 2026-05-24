@@ -1,0 +1,110 @@
+name: On-Demand Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Claude Code task prompt
+        required: true
+      team_mate_role:
+        description: Persona — sets the agent's role, system prompt, and allowed tools
+        required: false
+        default: operations
+        type: choice
+        options: [operations, architect, security, devops, sre]
+      image_tag:
+        description: Image tag to use (default latest)
+        required: false
+        default: latest
+      timeout_seconds:
+        description: Task timeout in seconds
+        required: false
+        default: "1800"
+      mount_repo:
+        description: Mount the checked-out repository into the container at /workspace
+        required: false
+        default: "true"
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/claude-mate-agent
+
+jobs:
+  run-agent:
+    name: "[${{ github.event.inputs.team_mate_role }}] ${{ github.event.inputs.task }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: on-demand   # optional: gate with required reviewers
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run on-demand agent
+        id: agent
+        run: |
+          WORKSPACE_MOUNT=""
+          if [ "${{ github.event.inputs.mount_repo }}" = "true" ]; then
+            WORKSPACE_MOUNT="-v ${{ github.workspace }}:/workspace -e WORK_DIR=/workspace"
+          fi
+
+          docker run --rm \
+            $WORKSPACE_MOUNT \
+            -e ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+            -e CLAUDE_TASK="${{ github.event.inputs.task }}" \
+            -e OPERATING_MODE=on-demand \
+            -e TEAM_MATE_ROLE="${{ github.event.inputs.team_mate_role }}" \
+            -e CLAUDE_TIMEOUT_SECONDS="${{ github.event.inputs.timeout_seconds }}" \
+            -e GITHUB_ACTIONS=true \
+            -e GITHUB_REPOSITORY="${{ github.repository }}" \
+            -e GITHUB_RUN_ID="${{ github.run_id }}" \
+            -e GITHUB_JOB="${{ github.job }}" \
+            -e GITHUB_SHA="${{ github.sha }}" \
+            -e GITHUB_REF_NAME="${{ github.ref_name }}" \
+            -e GITHUB_ACTOR="${{ github.actor }}" \
+            -e GITHUB_WORKFLOW="${{ github.workflow }}" \
+            -e RUNNER_NAME="${{ runner.name }}" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.image_tag }}" \
+            --once 2>&1 | tee /tmp/agent-output.log
+
+      - name: Cost and execution summary
+        if: always()
+        run: |
+          echo "## Agent Execution Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Persona | \`${{ github.event.inputs.team_mate_role }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repo mounted | \`${{ github.event.inputs.mount_repo }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          python3 - <<'EOF' >> $GITHUB_STEP_SUMMARY
+          import sys, json
+          with open("/tmp/agent-output.log") as f:
+              for line in f:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      d = json.loads(line)
+                  except json.JSONDecodeError:
+                      continue
+                  if d.get("message") == "task_cost_summary":
+                      executions = d.get("task_executions", {})
+                      total = sum(executions.values())
+                      print(f"**Cost:** `${d.get('cost_usd', 0):.6f}` USD")
+                      print(f"")
+                      print(f"**Tasks:** {total} total — "
+                            f"{executions.get('ok', 0)} ok / "
+                            f"{executions.get('error', 0)} error / "
+                            f"{executions.get('timeout', 0)} timeout")
+                      sys.exit(0)
+          print("*(cost summary not found in output)*")
+          EOF
