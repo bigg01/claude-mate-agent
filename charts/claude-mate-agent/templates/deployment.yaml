@@ -17,10 +17,10 @@ spec:
   template:
     metadata:
       {{- $vaultInject := and .Values.vault.enabled .Values.vault.agentInjector.enabled }}
-      {{- if or (and .Values.openshell.enabled .Values.openshell.annotations) .Values.podAnnotations $vaultInject }}
+      {{- if or (and .Values.auditAnnotations.enabled .Values.auditAnnotations.annotations) .Values.podAnnotations $vaultInject }}
       annotations:
-        {{- if .Values.openshell.enabled }}
-        {{- toYaml .Values.openshell.annotations | nindent 8 }}
+        {{- if .Values.auditAnnotations.enabled }}
+        {{- toYaml .Values.auditAnnotations.annotations | nindent 8 }}
         {{- end }}
         {{- if $vaultInject }}
         {{- include "claude-mate-agent.vaultAgentAnnotations" . | nindent 8 }}

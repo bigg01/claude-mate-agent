@@ -66,8 +66,42 @@ helm template ... --show-only templates/sandbox-job.yaml | kubectl create -f -
 | Default runtime (containerd/CRI-O) | Process-level isolation only | Free, ships everywhere |
 | gVisor (`runsc`) | User-space kernel, blocks most syscalls | ~10% perf overhead |
 | Kata Containers | Per-pod lightweight VM | Higher memory floor, longer cold start |
+| **NVIDIA OpenShell** *(experimental)* | Policy-enforced FS / net / process / **inference-routing** controls, agent-aware | Alpha software; install OpenShell separately |
 
-Recommended baseline for untrusted prompts: **gVisor**. Recommended for regulated/multi-tenant workloads: **Kata** + dedicated nodes + PodSecurity `restricted`.
+Recommended baseline for untrusted prompts: **gVisor**. Recommended for regulated/multi-tenant workloads: **Kata** + dedicated nodes + PodSecurity `restricted`. For air-gapped or LLM-egress-constrained workloads, evaluate **OpenShell** once it leaves alpha.
+
+### NVIDIA OpenShell (experimental)
+
+[OpenShell](https://github.com/NVIDIA/OpenShell) is a runtime specifically designed for autonomous AI agents. Unlike gVisor or Kata — which sandbox processes and syscalls — OpenShell enforces policies across four domains: filesystem, network, **process execution**, and **inference routing** (which LLM endpoints a sandboxed agent may reach). The last one is unique and directly relevant to claude-mate: it lets you constrain a sandbox to "only this LiteLLM gateway, never `api.anthropic.com` direct, no exfiltration."
+
+**Status:** alpha (current upstream `v0.0.x`), K8s support flagged experimental. Don't run as production default. Bundled here as an opt-in for evaluation.
+
+#### Enable
+
+1. Install OpenShell on the cluster (one-time):
+   ```bash
+   helm install openshell oci://ghcr.io/nvidia/openshell/helm-chart
+   ```
+2. (Optional) Create a policy ConfigMap in the namespace where the sandbox will run:
+   ```bash
+   kubectl create configmap claude-sandbox-policy \
+     --from-file=policy.yaml=path/to/policy.yaml \
+     --namespace claude-mate-sandbox
+   ```
+3. Enable on the chart:
+   ```bash
+   helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+     --set sandbox.enabled=true \
+     --set sandbox.task="<prompt>" \
+     --set sandbox.openshell.enabled=true \
+     --set sandbox.openshell.policyConfigMap=claude-sandbox-policy
+   ```
+
+When `sandbox.openshell.enabled=true`, the sandbox Job's `runtimeClassName` is forced to `openshell` (overriding `sandbox.runtimeClassName`), the OpenShell-specific annotations (`openshell.nvidia.com/profile`, `openshell.nvidia.com/inference-routing`) are added to the pod, and — if `policyConfigMap` is set — the policy file is mounted at `/etc/openshell/policy.yaml`. Without a policy ConfigMap, OpenShell falls back to its built-in restricted defaults.
+
+#### Why not the default?
+
+OpenShell's API and CRDs are pre-1.0 and changing fast. The chart's default sandbox path (gVisor or Kata via `sandbox.runtimeClassName`) is stable and well-understood. Pick OpenShell when the inference-routing guarantee is worth tolerating breakage.
 
 ## Lifecycle and cleanup
 

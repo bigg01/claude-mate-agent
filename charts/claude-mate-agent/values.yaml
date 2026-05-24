@@ -111,12 +111,18 @@ serviceMonitor:
   interval: 30s
   scrapeTimeout: 10s
 
-openshell:
+# auditAnnotations — labels emitted on every pod (Deployment + sandbox Job) so
+# external SIEM / audit-policy controllers can flag claude-mate workloads in
+# scans. These are passive annotations; no controller in this chart consumes
+# them. Set enabled: false to drop them entirely.
+#
+# For the real isolated-runtime sandbox path (NVIDIA OpenShell, gVisor, Kata)
+# see sandbox.openshell.* and sandbox.runtimeClassName.
+auditAnnotations:
   enabled: true
-  protectionMode: restricted
   annotations:
-    openshell.io/protection: restricted
-    openshell.io/audit: enabled
+    claude-mate.io/protection: restricted
+    claude-mate.io/audit: enabled
 
 audit:
   remoteLogSyncEnabled: true
@@ -325,6 +331,44 @@ sandbox:
     limits:
       cpu: 1000m
       memory: 1Gi
+
+  # ── NVIDIA OpenShell integration (EXPERIMENTAL) ─────────────────────────────
+  # OpenShell is a purpose-built runtime for autonomous AI agents — policy-
+  # enforced filesystem, network, process, AND inference-routing controls.
+  # Stricter than gVisor/Kata for our use case because it understands LLM
+  # egress, not just generic network traffic.
+  #
+  # Prerequisite: install OpenShell separately first
+  #   helm install openshell oci://ghcr.io/nvidia/openshell/helm-chart
+  #
+  # Status: OpenShell is alpha (v0.0.x) with experimental K8s support; expect
+  # breaking changes. Keep openshell.enabled=false in production until it
+  # stabilises. When enabled, runtimeClassName is forced to "openshell" and
+  # sandbox.runtimeClassName above is ignored.
+  #
+  # Reference: https://github.com/NVIDIA/OpenShell
+  openshell:
+    enabled: false
+
+    # RuntimeClass registered by OpenShell's chart. Default value matches the
+    # OpenShell upstream installer; override only if you renamed it.
+    runtimeClassName: openshell
+
+    # Optional ConfigMap (in this namespace) holding an OpenShell policy YAML.
+    # Mounted into the sandbox container at policyMountPath. When empty,
+    # OpenShell falls back to its built-in restricted defaults.
+    # Create with:
+    #   kubectl create configmap claude-sandbox-policy \
+    #     --from-file=policy.yaml=path/to/policy.yaml -n <namespace>
+    policyConfigMap: ""
+    policyMountPath: /etc/openshell/policy.yaml
+
+    # Annotations consumed by the OpenShell admission webhook / runtime.
+    # The defaults below opt into the strictest policy bundle. See OpenShell
+    # docs for the full annotation catalogue.
+    annotations:
+      openshell.nvidia.com/profile: "restricted"
+      openshell.nvidia.com/inference-routing: "enforce"
 
 # ── cert-manager integration ──────────────────────────────────────────────────
 # Requires cert-manager (https://cert-manager.io) installed on the cluster.

@@ -2,11 +2,11 @@
 
 ## Quick start with Docker Compose
 
-The repository ships a `docker-compose.yml` that starts the agent in static mode alongside Prometheus and Grafana. No Kubernetes or API keys are required.
+The repository ships a `docker-compose.yml` that starts the agent in static mode alongside Prometheus and Grafana. The base stack needs no Kubernetes or API keys to run the static health/metrics server — only on-demand mode (`--once`) needs credentials, and only if you point at a managed LLM.
 
 ```bash
 # Build the agent image and start the full stack
-docker-compose up --build
+docker compose up --build
 
 # or with Podman Compose
 podman-compose up --build
@@ -19,6 +19,40 @@ podman-compose up --build
 | Grafana | http://localhost:3000 | admin / admin |
 
 Grafana opens the **Claude Mate Agent** dashboard automatically.
+
+## Compose overlays — pick what you need
+
+Combine the base file with one or more overlays. Order matters: later files override earlier ones.
+
+| Overlay | Adds | Use when |
+|---|---|---|
+| `docker-compose.local-llm.yml` | Ollama + LiteLLM, agent wired to local LLM | You want `--once` mode without any cloud API key |
+| `docker-compose.opensearch.yml` | OpenSearch + Dashboards | You want to test audit-log shipping locally |
+| `docker-compose.nvidia.yml` | NVIDIA GPU passthrough on the agent | You're on a GPU host |
+| `docker-compose.artifactory.yml` | Routes builds through Artifactory mirrors | You're inside a corporate network |
+
+## Run fully local — no Anthropic API key
+
+The most useful local-test path. Boots agent + Ollama + LiteLLM in one shot; LiteLLM bridges the Anthropic ↔ OpenAI protocol gap so Claude Code talks to a local model.
+
+```bash
+# Boot the full local-LLM stack
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up --build
+
+# Pull a model the first time (one-shot, runs inside the ollama container)
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml \
+  exec ollama ollama pull llama3.1:8b
+
+# Verify the agent now points at a local backend
+curl http://localhost:8080/healthz
+
+# Run a one-shot task against the local model — no ANTHROPIC_API_KEY needed
+CLAUDE_TASK="say hello in exactly three words" \
+  docker compose -f docker-compose.yml -f docker-compose.local-llm.yml \
+  run --rm agent --once
+```
+
+Edit `litellm/config.yaml` to map specific Claude Code model names (`claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`) to whichever Ollama model fits your hardware — defaults assume `llama3.1:8b` and `qwen2.5-coder:7b`. See [LLM Gateway → Local LLM runtimes](llm-gateway.md#local-llm-runtimes-ollama-vllm-lm-studio) for the broader picture and vLLM / LM Studio variants.
 
 ## Verify the agent
 
