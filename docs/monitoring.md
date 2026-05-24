@@ -74,29 +74,84 @@ serviceMonitor:
 
 The ServiceMonitor is only rendered when the `monitoring.coreos.com/v1/ServiceMonitor` API is present in the cluster.
 
-## Grafana dashboard
+## Grafana dashboards
 
-A pre-built Grafana dashboard is included at `grafana/dashboards/claude-mate-agent.json`. It provides:
+Five pre-built dashboards live in `grafana/dashboards/` and auto-provision via `grafana/provisioning/dashboards/default.yml` whenever Grafana starts.
 
-- **Agent Health** — status, uptime, HTTP request rate
-- **Task Execution** — total tasks, success rate gauge, executions by result over time
-- **API Cost** — total cost, average cost per task, cost per hour bar chart
-- **Task Performance** — last task duration, duration history
+| Dashboard | UID | Purpose |
+|---|---|---|
+| `claude-mate-agent.json` | `claude-mate-agent` | Agent health, task execution, API cost summary, task performance |
+| `dora-metrics.json` | `dora-metrics` | DORA — deployment frequency, lead time, change failure rate, MTTR |
+| `anthropic-cost.json` | `anthropic-cost` | FinOps view: spend per persona / namespace, burn rate, projected monthly cost, budget %, leaderboard |
+| `vllm.json` | `vllm-serving` | vLLM throughput, queue depth, KV-cache, TTFT/TPOT/e2e latency, token rate |
+| `ollama.json` | `ollama-local` | Local Ollama health, LiteLLM proxy latency/throughput per model, Go runtime memory |
 
-### Load the dashboard
+### Anthropic cost dashboard (FinOps)
 
-**Docker Compose (local dev):** The dashboard auto-provisions when you run `docker-compose up`. Open Grafana at `http://localhost:3000`.
+Tracks live spend against a budget. Key panels:
 
-**Existing Grafana instance:** Import `grafana/dashboards/claude-mate-agent.json` via **Dashboards → Import → Upload JSON file**.
+- **Cost stats** — 1h / 24h / 7d totals, current burn rate (USD/h), 30-day projection.
+- **Budget %** — coloured gauge keyed to the `monthly_budget_usd` dashboard variable (default `$1000`).
+- **Burn rate by persona** — spot which role is consuming the budget.
+- **Cost share donut** — 7-day proportional view across personas.
+- **Cost-per-task trend** — surface expensive prompts: rising USD/task at constant task volume = longer or more expensive completions.
+- **Leaderboard table** — namespace × role sorted by 7-day spend.
 
-**Grafana Operator / Helm provisioning:** Mount the JSON file via a ConfigMap and reference it in your `GrafanaDashboard` CR or Grafana provisioning volume.
+All panels use `claude_mate_agent_task_cost_usd_total` emitted by the agent on every on-demand task — no extra exporters needed.
+
+### vLLM dashboard
+
+Drives off vLLM's native `vllm:*` Prometheus metrics. Requires a Prometheus scrape job pointed at the vLLM OpenAI-compatible server (`/metrics` on the same port as the API). Panels:
+
+- **Stats row** — requests running / waiting, GPU KV-cache usage, success / failure counts, preemptions.
+- **Latency** — end-to-end (p50/p95/p99), time-to-first-token (TTFT), time-per-output-token (TPOT).
+- **Throughput** — prompt + generation tokens/sec by model.
+- **Queue depth** — running vs waiting over time.
+
+Template variables `$model` and `$instance` let you filter across multi-model / multi-replica deployments.
+
+### Ollama dashboard
+
+Ollama's native Prometheus surface is sparse (mostly Go runtime + process metrics), so this dashboard blends three sources:
+
+- **Ollama process** — Go memory, up/down state.
+- **LiteLLM proxy** (sitting in front of Ollama) — request latency p50/p95/p99 per model, throughput by status code, token usage.
+- **Agent's view** — `claude_mate_agent_task_*` filtered to confirm zero cost (local inference) and surface failures.
+
+### Load a dashboard
+
+**Docker Compose (local dev):** All dashboards auto-provision when you run `make compose-up` (or any of the overlay variants). Open Grafana at `http://localhost:3000`.
+
+**Existing Grafana instance:** Import the JSON via **Dashboards → Import → Upload JSON file**.
+
+**Grafana Operator / Helm provisioning:** Mount the JSON files via a ConfigMap and reference them in your `GrafanaDashboard` CR or the Grafana sidecar's provisioning volume.
+
+### Prometheus scrape configs for the new dashboards
+
+The vLLM and Ollama dashboards need additional scrape jobs. Templates are commented in `prometheus/prometheus.yml`:
+
+```yaml
+- job_name: ollama
+  static_configs:
+    - targets: ['ollama:11434']
+- job_name: litellm
+  static_configs:
+    - targets: ['litellm:4000']
+- job_name: vllm
+  static_configs:
+    - targets: ['vllm:8000']
+```
 
 ### Dashboard variables
 
-| Variable | Description |
-|---|---|
-| `namespace` | Filter by Kubernetes namespace |
-| `pod` | Filter by individual pod (multi-select) |
+| Dashboard | Variable | Description |
+|---|---|---|
+| claude-mate-agent | `namespace` | Filter by Kubernetes namespace |
+| claude-mate-agent | `pod` | Filter by individual pod (multi-select) |
+| anthropic-cost | `namespace`, `role` | Filter by namespace and persona |
+| anthropic-cost | `monthly_budget_usd` | Drives the budget % gauge (default `1000`) |
+| vllm | `model`, `instance` | Filter by served model name and vLLM replica |
+| ollama | `instance` | Filter by Ollama or LiteLLM instance |
 
 ## OpenTelemetry export
 

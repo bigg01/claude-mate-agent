@@ -1,0 +1,165 @@
+{
+  "__inputs": [
+    {"name": "DS_PROMETHEUS", "label": "Prometheus", "type": "datasource", "pluginId": "prometheus", "pluginName": "Prometheus"}
+  ],
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0"},
+    {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"},
+    {"type": "panel", "id": "stat", "name": "Stat", "version": ""},
+    {"type": "panel", "id": "timeseries", "name": "Time series", "version": ""},
+    {"type": "panel", "id": "text", "name": "Text", "version": ""}
+  ],
+  "annotations": {"list": []},
+  "description": "Ollama local model server — health, request rate, and latency. Ollama's native Prometheus surface is sparse; this dashboard blends Ollama process metrics, the LiteLLM proxy view, and the claude-mate agent task metrics filtered to the Ollama backend.",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ollama", "llm", "local-inference", "claude-mate"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"text": "Prometheus", "value": "${DS_PROMETHEUS}"},
+        "hide": 0
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "query": "label_values(up{job=~\"ollama|litellm\"}, instance)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "Ollama — Local Inference",
+  "uid": "ollama-local",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Ollama up",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(up{job=\"ollama\",instance=~\"$instance\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "LiteLLM up",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [{"expr": "sum(up{job=\"litellm\",instance=~\"$instance\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Agent tasks via Ollama (1h)",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [{"expr": "sum(increase(claude_mate_agent_task_executions_total{result=\"ok\"}[1h]))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "fixed", "fixedColor": "blue"}}}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Agent failures (1h)",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [{"expr": "sum(increase(claude_mate_agent_task_executions_total{result!=\"ok\"}[1h]))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}}
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Cost — Ollama (USD)",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [{"expr": "sum(claude_mate_agent_task_cost_usd_total)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "color": {"mode": "fixed", "fixedColor": "green"}, "decimals": 4}, "overrides": []},
+      "description": "Should stay at 0 — local Ollama incurs no API cost. A non-zero value means the agent's ANTHROPIC_BASE_URL is pointing at a paid endpoint."
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Last task duration (s)",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"expr": "max(claude_mate_agent_task_last_duration_seconds)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 30}, {"color": "red", "value": 120}]}}}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "LiteLLM request latency p50 / p95 / p99 (per model)",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le, model) (rate(litellm_request_total_latency_metric_bucket{instance=~\"$instance\"}[5m])))", "refId": "A", "legendFormat": "{{model}} p50"},
+        {"expr": "histogram_quantile(0.95, sum by (le, model) (rate(litellm_request_total_latency_metric_bucket{instance=~\"$instance\"}[5m])))", "refId": "B", "legendFormat": "{{model}} p95"},
+        {"expr": "histogram_quantile(0.99, sum by (le, model) (rate(litellm_request_total_latency_metric_bucket{instance=~\"$instance\"}[5m])))", "refId": "C", "legendFormat": "{{model}} p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "description": "Requires LiteLLM's Prometheus exporter on /metrics. Histograms appear as litellm_request_total_latency_metric_*."
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "LiteLLM request throughput by model + status",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "sum by (model, status_code) (rate(litellm_proxy_total_requests_metric_total{instance=~\"$instance\"}[5m]))", "refId": "A", "legendFormat": "{{model}} — {{status_code}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Token usage (prompt + completion) by model",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"expr": "sum by (model) (rate(litellm_total_tokens_metric_total{instance=~\"$instance\"}[5m]))", "refId": "A", "legendFormat": "{{model}} — total tok/s"},
+        {"expr": "sum by (model) (rate(litellm_input_tokens_metric_total{instance=~\"$instance\"}[5m]))", "refId": "B", "legendFormat": "{{model}} — input tok/s"},
+        {"expr": "sum by (model) (rate(litellm_output_tokens_metric_total{instance=~\"$instance\"}[5m]))", "refId": "C", "legendFormat": "{{model}} — output tok/s"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Ollama process — Go runtime memory",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"expr": "go_memstats_alloc_bytes{job=\"ollama\",instance=~\"$instance\"}", "refId": "A", "legendFormat": "{{instance}} — allocated"},
+        {"expr": "go_memstats_sys_bytes{job=\"ollama\",instance=~\"$instance\"}", "refId": "B", "legendFormat": "{{instance}} — sys"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "description": "Ollama exposes standard Go runtime metrics on /metrics — useful for spotting memory growth or GC pressure."
+    },
+    {
+      "id": 20,
+      "type": "text",
+      "title": "About these metrics",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 20},
+      "options": {
+        "mode": "markdown",
+        "content": "**Ollama** exposes a thin Prometheus surface (mostly Go runtime + process metrics on `/metrics`). The richer LLM-level signals (request rate, latency, token usage) come from the **LiteLLM** proxy sitting in front. The `claude_mate_agent_*` panels show the agent's view of the same path — useful for distinguishing client-side vs server-side errors.\n\n**Required scrape jobs in `prometheus.yml`:**\n```yaml\n- job_name: ollama\n  static_configs:\n    - targets: ['ollama:11434']\n- job_name: litellm\n  static_configs:\n    - targets: ['litellm:4000']\n```\n\nFor GPU utilization, add a `nvidia_smi_exporter` job and reference `nvidia_smi_*` metrics."
+      }
+    }
+  ]
+}
