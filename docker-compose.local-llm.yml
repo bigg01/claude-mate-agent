@@ -47,7 +47,7 @@ services:
     #           capabilities: [gpu]
 
   litellm:
-    image: docker.io/ghcr.io/berriai/litellm:main-stable
+    image: ghcr.io/berriai/litellm:main-stable
     ports:
       - "4000:4000"
     environment:
