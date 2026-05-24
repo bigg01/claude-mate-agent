@@ -26,6 +26,56 @@ Setting `claudeCode.baseUrl` to anything non-empty routes every request through 
 | Google Vertex AI (Claude) | Anthropic-compatible | no | `values-gemini.yaml` |
 | Google Gemini (native) | OpenAI-format | yes — LiteLLM in front | `values-gemini.yaml` |
 | NVIDIA NIM | OpenAI-format | yes — LiteLLM in front | `values-nvidia.yaml` |
+| Ollama (local) | OpenAI-format | yes — LiteLLM in front | `values-ollama.yaml` |
+| vLLM (self-hosted) | OpenAI-format | yes — LiteLLM in front | `values-vllm.yaml` |
+| LM Studio (desktop) | OpenAI-format | yes — LiteLLM in front | `values-lmstudio.yaml` |
+
+## Local LLM runtimes (Ollama, vLLM, LM Studio)
+
+All three run open models locally — no calls leave the cluster (or the laptop). Useful for:
+
+- **Air-gapped environments** — banks, defence, regulated workloads where no traffic may reach `api.anthropic.com`.
+- **Cost-sensitive workloads** — high-volume DevOps tasks (lint, format, doc generation) where a 7-14B local model is "good enough".
+- **Pre-prod evaluation** — testing prompts/personas against multiple open models before paying for a managed provider.
+- **Laptop development** — `docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up` boots agent + Ollama + LiteLLM in one shot.
+
+| Runtime | Best for | Notes |
+|---|---|---|
+| **Ollama** | Laptop dev, on-prem CPU/GPU, air-gapped clusters | Simplest install, model catalogue at <https://ollama.com/library> |
+| **vLLM** | Production GPU serving, batched inference, fine-tuned models | Highest throughput; needs CUDA-capable nodes |
+| **LM Studio** | Desktop evaluation with GUI for model browse/download | Native macOS/Windows/Linux app; not cluster-native |
+
+### Why all three need LiteLLM
+
+Claude Code speaks the **Anthropic protocol**. Ollama, vLLM, and LM Studio all speak the **OpenAI protocol**. LiteLLM sits in front, accepts Anthropic-format requests on `/anthropic`, translates them to OpenAI-format, and forwards to the local backend. The agent's `claudeCode.baseUrl` points at LiteLLM's `/anthropic` route; the `claudeCode.apiKeySecretName` holds LiteLLM's master/virtual key (no real Anthropic credential needed).
+
+```
+claude-mate-agent  ──Anthropic API──▶  LiteLLM  ──OpenAI API──▶  Ollama / vLLM / LM Studio
+   (Anthropic SDK)                  (translator)              (local model server)
+```
+
+### Laptop quickstart (one command)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up --build
+
+# Pull a model the first time:
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml \
+  exec ollama ollama pull llama3.1:8b
+```
+
+The agent at `http://localhost:8080` is now backed by `llama3.1:8b` running in Ollama, with LiteLLM transparently bridging the protocols. Edit `litellm/config.yaml` to map specific Claude Code model names (`claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`) to whichever local model you want.
+
+### Cluster deployment
+
+```bash
+# Pick the overlay
+helm upgrade --install claude-mate-agent charts/claude-mate-agent \
+  --namespace claude-mate --create-namespace \
+  -f examples/llm-gateway/values-ollama.yaml   # or -vllm.yaml / -lmstudio.yaml
+```
+
+Each overlay assumes LiteLLM is already deployed in the `litellm` namespace with a Service named `litellm-ollama` / `litellm-vllm` / `litellm-lmstudio`. The overlay's `claudeCode.baseUrl` points at that Service's `/anthropic` route; the `model_list` snippet in the overlay's comments shows how to wire LiteLLM to the matching backend Service.
 
 ## Routing diagrams
 

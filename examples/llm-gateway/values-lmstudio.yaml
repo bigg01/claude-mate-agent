@@ -1,0 +1,39 @@
+# LM Studio — desktop GUI for downloading and serving local models.
+# Best for: laptop development, model evaluation, demos. LM Studio is a
+# native desktop app, not a cluster-native service — this overlay assumes
+# you run it on the operator's workstation and reach it over the cluster
+# network (or via `docker-compose.local-llm.yml` for a self-contained stack).
+#
+# LM Studio exposes an OpenAI-compatible API on port 1234 when "Local Server"
+# is enabled in the UI. LiteLLM sits in front to translate to Anthropic.
+#
+# Reference:
+#   LM Studio: https://lmstudio.ai/docs/local-server
+#   LiteLLM:   https://docs.litellm.ai/docs/providers/openai_compatible
+#
+# Architecture:
+#   claude-mate-agent  ──Anthropic API──▶  LiteLLM  ──OpenAI API──▶  LM Studio (host)
+#
+# Secret prerequisite — LiteLLM virtual key (no real Anthropic key):
+#   kubectl create secret generic litellm-lmstudio-key \
+#     --from-literal=ANTHROPIC_API_KEY=sk-litellm-lmstudio
+
+claudeCode:
+  apiKeySecretName: litellm-lmstudio-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  baseUrl: "http://litellm-lmstudio.litellm.svc.cluster.local:4000/anthropic"
+  apiVersion: ""
+
+# Example LiteLLM model_list — point at LM Studio on the operator's machine.
+# Replace <HOST-IP> with the workstation's reachable IP from inside the cluster.
+# For laptop dev with docker-compose.local-llm.yml, use host.docker.internal.
+#
+# model_list:
+#   - model_name: claude-3-5-sonnet-20241022   # name Claude Code requests
+#     litellm_params:
+#       model: openai/local-model               # LM Studio uses "local-model" by default
+#       api_base: http://<HOST-IP>:1234/v1
+#       api_key: lm-studio                      # any non-empty string works
+#
+# In LM Studio UI: select a model -> "Local Server" tab -> Start Server.
+# Note the JIT model loading flag if you want the server to load on demand.

@@ -13,6 +13,11 @@ Claude Code uses the Anthropic SDK, which honours `ANTHROPIC_BASE_URL` and `ANTH
 | `values-azure.yaml` | Azure AI Foundry | direct (Anthropic-compatible) | Microsoft enterprise compliance |
 | `values-gemini.yaml` | Google Vertex AI / Gemini | direct or proxied | GCP customers; Vertex Claude or native Gemini |
 | `values-nvidia.yaml` | NVIDIA NIM (free tier) | proxied (via LiteLLM) | Free open-source models for non-production |
+| `values-ollama.yaml` | Ollama (local) | proxied (via LiteLLM) | Laptop / on-prem / air-gapped — CPU or GPU |
+| `values-vllm.yaml` | vLLM (self-hosted) | proxied (via LiteLLM) | High-throughput GPU inference for prod open models |
+| `values-lmstudio.yaml` | LM Studio (desktop) | proxied (via LiteLLM) | Laptop development with desktop GUI for model mgmt |
+
+For all three local runtimes, see `docker-compose.local-llm.yml` in the repo root for a one-command laptop stack (agent + Ollama + LiteLLM).
 
 ## How routing works
 

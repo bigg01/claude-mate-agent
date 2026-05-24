@@ -1,0 +1,38 @@
+# Ollama — local LLM runtime, OpenAI-compatible API on port 11434.
+# Best for: laptop development, on-prem CPU/GPU servers, air-gapped clusters.
+#
+# Ollama speaks OpenAI protocol, NOT Anthropic, so LiteLLM sits in front to
+# translate. The Claude Code agent points at LiteLLM's /anthropic route.
+#
+# Reference:
+#   Ollama:  https://ollama.com/library
+#   LiteLLM: https://docs.litellm.ai/docs/providers/ollama
+#
+# Architecture:
+#   claude-mate-agent  ──Anthropic API──▶  LiteLLM  ──OpenAI API──▶  Ollama
+#
+# Secret prerequisite — LiteLLM virtual key (no real Anthropic key needed):
+#   kubectl create secret generic litellm-ollama-key \
+#     --from-literal=ANTHROPIC_API_KEY=sk-litellm-ollama-local
+
+claudeCode:
+  apiKeySecretName: litellm-ollama-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  baseUrl: "http://litellm-ollama.litellm.svc.cluster.local:4000/anthropic"
+  apiVersion: ""
+
+# Example LiteLLM model_list — route Claude Code's model name to a local Ollama
+# model. Pull the model first inside Ollama: `ollama pull llama3.1:70b`.
+#
+# model_list:
+#   - model_name: claude-3-5-sonnet-20241022   # name Claude Code requests
+#     litellm_params:
+#       model: ollama_chat/llama3.1:70b
+#       api_base: http://ollama.ollama.svc.cluster.local:11434
+#   - model_name: claude-3-5-haiku-20241022
+#     litellm_params:
+#       model: ollama_chat/qwen2.5-coder:14b
+#       api_base: http://ollama.ollama.svc.cluster.local:11434
+#
+# For laptop dev with docker compose, see docker-compose.local-llm.yml in the
+# repo root — brings up Ollama + LiteLLM + the agent in one stack.

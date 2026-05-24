@@ -1,0 +1,29 @@
+# LiteLLM proxy config — used by docker-compose.local-llm.yml.
+# Maps the Claude Code model names to whatever local backend you point at.
+#
+# Add or replace entries to taste. After editing, restart litellm:
+#   docker compose -f docker-compose.yml -f docker-compose.local-llm.yml restart litellm
+
+model_list:
+  # Sonnet alias → a coding-tuned 8–14B model that fits on most laptops.
+  - model_name: claude-3-5-sonnet-20241022
+    litellm_params:
+      model: ollama_chat/llama3.1:8b
+      api_base: http://ollama:11434
+
+  # Haiku alias → a smaller, faster model for quick tasks.
+  - model_name: claude-3-5-haiku-20241022
+    litellm_params:
+      model: ollama_chat/qwen2.5-coder:7b
+      api_base: http://ollama:11434
+
+  # Fallback: anything Claude Code asks for that we haven't mapped goes here.
+  - model_name: "*"
+    litellm_params:
+      model: ollama_chat/llama3.1:8b
+      api_base: http://ollama:11434
+
+# Master key — must match LITELLM_MASTER_KEY env on the litellm container
+# AND the ANTHROPIC_API_KEY the agent sends. Virtual / fake; no upstream key.
+general_settings:
+  master_key: sk-litellm-local

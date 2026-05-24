@@ -1,0 +1,52 @@
+# vLLM — high-throughput inference server for self-hosted open models.
+# Best for: production-grade local inference on GPU nodes, batched serving,
+# fine-tuned model deployment.
+#
+# vLLM exposes an OpenAI-compatible API on /v1 by default, so LiteLLM sits
+# in front to translate Anthropic ↔ OpenAI for Claude Code.
+#
+# Reference:
+#   vLLM:    https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html
+#   LiteLLM: https://docs.litellm.ai/docs/providers/openai_compatible
+#
+# Architecture:
+#   claude-mate-agent  ──Anthropic API──▶  LiteLLM  ──OpenAI API──▶  vLLM (GPU)
+#
+# Secret prerequisite — LiteLLM virtual key:
+#   kubectl create secret generic litellm-vllm-key \
+#     --from-literal=ANTHROPIC_API_KEY=sk-litellm-vllm
+
+claudeCode:
+  apiKeySecretName: litellm-vllm-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  baseUrl: "http://litellm-vllm.litellm.svc.cluster.local:4000/anthropic"
+  apiVersion: ""
+
+# Example LiteLLM model_list — point at a vLLM Deployment. Replace the api_base
+# with whatever Service the vLLM chart exposes.
+#
+# model_list:
+#   - model_name: claude-3-5-sonnet-20241022   # name Claude Code requests
+#     litellm_params:
+#       model: openai/Qwen/Qwen2.5-Coder-32B-Instruct
+#       api_base: http://vllm-qwen-coder.vllm.svc.cluster.local:8000/v1
+#       api_key: dummy   # vLLM ignores it unless --api-key was passed at launch
+#   - model_name: claude-3-5-haiku-20241022
+#     litellm_params:
+#       model: openai/meta-llama/Llama-3.1-8B-Instruct
+#       api_base: http://vllm-llama.vllm.svc.cluster.local:8000/v1
+#       api_key: dummy
+#
+# Minimal vLLM Deployment snippet (one GPU per replica):
+#
+#   containers:
+#     - name: vllm
+#       image: vllm/vllm-openai:latest
+#       args:
+#         - --model
+#         - Qwen/Qwen2.5-Coder-32B-Instruct
+#         - --max-model-len
+#         - "32768"
+#       resources:
+#         limits:
+#           nvidia.com/gpu: 1
