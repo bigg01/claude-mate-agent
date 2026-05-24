@@ -22,6 +22,10 @@
 # with "bad parameter: link is not supported". Attaching every service to an
 # explicit network suppresses that translation.
 
+# Match the base file's version so docker-compose v1 merges cleanly and stays
+# in modern networking mode (otherwise depends_on -> --link translation fires).
+version: '3.8'
+
 networks:
   cm-local-llm:
     driver: bridge

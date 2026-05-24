@@ -1,3 +1,10 @@
+# Schema version pin: keeps legacy docker-compose v1 (still shipped by some
+# distros as /usr/bin/docker-compose and used by podman compose as a backend)
+# in modern networking mode. Without it, v1 falls back to legacy linking and
+# translates depends_on into --link flags, which podman rejects. v2+ ignores
+# this key but tolerates it.
+version: '3.8'
+
 services:
 
   # Claude Mate Agent — static mode (health + metrics server)
