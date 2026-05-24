@@ -4,12 +4,22 @@
     "config:recommended",
     ":dependencyDashboard",
     ":semanticCommits",
-    "group:monorepos"
+    "group:monorepos",
+    ":enableVulnerabilityAlertsWithLabel(security)"
   ],
   "timezone": "Europe/Zurich",
-  "schedule": ["before 6am on Monday"],
+  "schedule": ["* 0-6 * * *"],
   "labels": ["dependencies"],
   "reviewers": [],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rebaseWhen": "behind-base-branch",
+  "vulnerabilityAlerts": {
+    "labels": ["security", "dependencies"],
+    "schedule": ["at any time"],
+    "prPriority": 10
+  },
+  "osvVulnerabilityAlerts": true,
 
   "hostRules": [
     {
@@ -22,8 +32,24 @@
 
   "packageRules": [
     {
+      "description": "Auto-merge patch updates for low-risk ecosystems once CI is green",
+      "matchUpdateTypes": ["patch"],
+      "matchManagers": ["github-actions", "pep621", "pip_requirements", "helmv3", "helm-values"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Auto-merge GitHub Actions digest pins (SHA → SHA) — safe rotation",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["digest"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
       "description": "Group all GitHub Actions updates into one PR",
       "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "major"],
       "groupName": "github-actions",
       "automerge": false
     },
