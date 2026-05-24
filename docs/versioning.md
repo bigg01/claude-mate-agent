@@ -93,4 +93,4 @@ Without a single source, every artefact drifts independently — chart `appVersi
 - One place release tooling consults.
 - One number engineers can quote when filing bugs.
 
-See [`requirement.md` §27](../requirement.md) for the full SemVer requirements catalogue.
+See [`requirement.md` §27](https://github.com/bigg01/claude-mate-agent/blob/main/requirement.md#27-semantic-versioning-requirements) for the full SemVer requirements catalogue.
