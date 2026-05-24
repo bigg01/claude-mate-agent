@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    # SemVer release tags trigger image + chart publish with the SemVer tag set.
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
   pull_request:
     branches: [main]
 
@@ -182,10 +184,17 @@ jobs:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
             ${{ vars.ARTIFACTORY_DOCKER_REGISTRY != '' && format('{0}/{1}', vars.ARTIFACTORY_DOCKER_REGISTRY, env.IMAGE_NAME) || '' }}
+          # SemVer tagging:
+          #   v1.2.3   → 1.2.3, 1.2, 1, latest
+          #   v1.2.3-rc.1 → 1.2.3-rc.1 only (no major/minor/latest for pre-release)
+          # Branch / commit fallbacks for non-tag pushes.
           tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
             type=sha,prefix=,format=short
             type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
