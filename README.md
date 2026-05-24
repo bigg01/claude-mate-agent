@@ -37,8 +37,8 @@ Claude Mate Agent packages the [Claude Code CLI](https://claude.ai/code) as a pr
 
 | Pillar | What you get |
 |---|---|
-| **Execution** | Static long-running Deployment · on-demand CI/CD Job · isolated [sandbox](docs/sandbox.md) (one-shot K8s Job with gVisor/Kata, ephemeral workspace, TTL cleanup) |
-| **Connectivity** | Direct Anthropic · Kong AI Gateway · LiteLLM · OpenRouter · Azure AI Foundry · Vertex AI · NVIDIA NIM — switch with one Helm value, no image rebuild ([details](docs/llm-gateway.md)) |
+| **Execution** | Static long-running Deployment · on-demand CI/CD Job · isolated [sandbox](docs/sandbox.md) (one-shot K8s Job with gVisor / Kata / experimental NVIDIA OpenShell, ephemeral workspace, TTL cleanup) |
+| **Connectivity** | Direct Anthropic · Kong AI Gateway · LiteLLM · OpenRouter · Azure AI Foundry · Vertex AI · NVIDIA NIM · **local Ollama / vLLM / LM Studio** (air-gapped, no API key) — switch with one Helm value, no image rebuild ([details](docs/llm-gateway.md)) |
 | **Personas** | Architect · Security · DevOps · SRE — each with a curated system prompt and Claude CLI tool allow-list (security persona is read-only) |
 | **Guardrails** | Five opt-in runtime controls — [cost cap](docs/guardrails.md) · input/output content scrubbing (api-keys / credentials / PII / RFC1918) · `.claudeignore` workspace allowlist · per-persona intent denylist. Each is independent; zero overhead when disabled. |
 | **Routing** | Kubernetes Ingress · OpenShift Route · Gateway API HTTPRoute — same chart, capability-gated templates |
@@ -57,14 +57,32 @@ Seven independent security layers, each useful even if every other layer is brea
 | 1 | **Image** | `ubi9-minimal` base · no pip/npm/dnf/python in runtime · PyInstaller-compiled single binary · Renovate-tracked base/dep versions |
 | 2 | **Container** | `readOnlyRootFilesystem: true` · `runAsNonRoot` + arbitrary UID for OpenShift SCC · `capabilities.drop: ALL` · seccomp `RuntimeDefault` · pinned Claude Code CLI version |
 | 3 | **Network** | NetworkPolicy enabled by default · operator-defined egress allow-list · sandbox NetworkPolicy blocks all ingress · RFC 1918 excluded from default sandbox egress |
-| 4 | **Sandbox** | One-shot K8s Job · `automountServiceAccountToken: false` · optional gVisor/Kata `runtimeClassName` · `activeDeadlineSeconds` hard cap · `ttlSecondsAfterFinished` auto-cleanup · ephemeral `/workspace` volume |
-| 5 | **Identity** | API key from K8s Secret (never image-baked) · persona-bound Claude tool allow-list (`security` is read-only) · OpenShell pod annotations for shell-access audit · Vault Agent Injector option |
+| 4 | **Sandbox** | One-shot K8s Job · `automountServiceAccountToken: false` · optional gVisor / Kata / experimental [NVIDIA OpenShell](docs/sandbox.md#nvidia-openshell-experimental) `runtimeClassName` (the last with inference-routing policy) · `activeDeadlineSeconds` hard cap · `ttlSecondsAfterFinished` auto-cleanup · ephemeral `/workspace` volume |
+| 5 | **Identity** | API key from K8s Secret (never image-baked) · persona-bound Claude tool allow-list (`security` is read-only) · passive SIEM audit annotations on every pod · Vault Agent Injector option |
 | 6 | **Content / DLP** | Runtime [guardrails](docs/guardrails.md): per-task + hourly cost cap · pre-flight input scrubbing · post-task output scrubbing (redact or block on api-keys, PEM, SSN, CC, RFC1918) · `.claudeignore` workspace allowlist · per-persona intent denylist. All opt-in via Helm. |
 | 7 | **Supply chain** | Trivy `image` + `fs` + `config` (fixed CRITICAL/HIGH blocks merge) · Bandit + Semgrep SAST (SARIF → Code Scanning) · Gitleaks secret scan · Syft CycloneDX SBOM (90-day retention) · `.trivyignore` + `.gitleaks.toml` allowlists with rationale |
 
 See [Security & Compliance](docs/security.md) and [Security Scanning](docs/security-scanning.md) for the full controls catalogue.
 
 ## Quick start
+
+### Fully local — no API key, no cloud (recommended first run)
+
+```bash
+# Boot agent + Ollama + LiteLLM together; LiteLLM bridges Anthropic ↔ OpenAI
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up --build
+
+# One-time: pull a model into Ollama
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml \
+  exec ollama ollama pull llama3.1:8b
+
+# Run a one-shot task against the local model — no ANTHROPIC_API_KEY needed
+CLAUDE_TASK="say hello in exactly three words" \
+  docker compose -f docker-compose.yml -f docker-compose.local-llm.yml \
+  run --rm agent --once
+```
+
+### Against the real Anthropic API
 
 ```bash
 # Build the image (auto-detects podman or docker)
@@ -103,7 +121,8 @@ make security      # all of the above, sequentially
 | `container/tests/` | pytest unit tests + coverage config (50% floor) |
 | `Dockerfile` | 3-stage multi-stage build: `python-builder` (uv + PyInstaller) → `node-builder` (npm + claude CLI) → `ubi9-minimal` runtime |
 | `charts/claude-mate-agent` | Helm chart — Ingress · Route · Gateway API HTTPRoute · sandbox Job · NetworkPolicy · cert-manager · Vault · NVIDIA GPU |
-| `examples/` | Eight ready-to-use overlays: static-kubernetes, static-openshift, gateway-api, monitoring, on-demand-gitlab, on-demand-github, argocd, fluxcd, **personas**, **llm-gateway** (7 providers), **sandbox**, **nvidia-gpu** |
+| `examples/` | Deployment overlays: static-kubernetes · static-openshift · gateway-api · monitoring · on-demand-gitlab · on-demand-github · argocd · fluxcd · personas · sandbox · nvidia-gpu · **llm-gateway** (10 providers including Ollama / vLLM / LM Studio) · **mcp-deploy** (drive `kubernetes-mcp-server` from Claude Code) |
+| `docker-compose.*.yml` | Opt-in local overlays: `local-llm` (Ollama + LiteLLM) · `opensearch` (audit-log sink test) · `nvidia` (GPU passthrough) · `artifactory` (corporate mirror) |
 | `grafana/dashboards/` | `claude-mate-agent.json` + `dora-metrics.json` — auto-provisioned |
 | `prometheus/` | Scrape config + `dora_rules.yml` (recording + alerting) |
 | `scripts/dora-emit.sh` | Canonical DORA event emitter (deploy / failure / restore) |
@@ -141,21 +160,24 @@ make docs-build        # build static site to site/
 | Page | Purpose |
 |---|---|
 | [Getting Started](docs/getting-started.md) | Build, run, first task |
-| [Architecture](docs/architecture.md) | Component layout, two-layer design |
+| [Local Development](docs/local-dev.md) | Compose overlays · fully-local Ollama stack · GPU passthrough |
 | [Solution Architecture](docs/solution-architecture.md) | End-to-end reference architecture |
+| [Container Internals](docs/architecture.md) | Two-layer design (agent + claude CLI), graceful shutdown |
 | [Container Build](docs/container.md) | Multi-stage Dockerfile, PyInstaller, OTEL bundling |
 | [Helm Chart](docs/helm-chart.md) | Values reference, routing, secrets |
+| [GitLab CI/CD](docs/gitlab-ci.md) | Pipeline jobs and required variables |
+| [GitHub Actions](docs/github-actions.md) | Workflows and required secrets |
+| [Deploy via MCP](docs/mcp-deploy.md) | Drive `kubernetes-mcp-server` from Claude Code for interactive deploys |
 | [Personas](docs/personas.md) | Architect / Security / DevOps / SRE roles |
-| [LLM Gateway](docs/llm-gateway.md) | Provider routing — Anthropic, Kong, LiteLLM, OpenRouter, Azure, Vertex AI, NVIDIA |
-| [Sandboxes](docs/sandbox.md) | Ephemeral one-shot Job execution with kernel-level isolation |
+| [LLM Gateway](docs/llm-gateway.md) | Provider routing — Anthropic, Kong, LiteLLM, OpenRouter, Azure, Vertex AI, NVIDIA NIM, **Ollama / vLLM / LM Studio** |
+| [Sandboxes](docs/sandbox.md) | Ephemeral one-shot Job execution · gVisor / Kata / **NVIDIA OpenShell** runtimes |
 | [Guardrails](docs/guardrails.md) | Cost cap · input/output scrubbing · workspace allowlist · intent denylist |
 | [Monitoring](docs/monitoring.md) | Metrics reference, OTEL setup, ServiceMonitor |
 | [Security & Compliance](docs/security.md) | RBAC, SCC, NetworkPolicy, audit |
 | [Security Scanning](docs/security-scanning.md) | Trivy, Bandit, Semgrep, Gitleaks, SBOM |
 | [Quality Gates](docs/quality-gates.md) | SDLC stage → gate matrix, pipeline DAG |
 | [DORA Metrics](docs/dora-metrics.md) | Definitions, targets, dashboard, alerting |
-| [GitLab CI/CD](docs/gitlab-ci.md) | Pipeline jobs and required variables |
-| [GitHub Actions](docs/github-actions.md) | Workflows and required secrets |
+| [Versioning](docs/versioning.md) | SemVer scheme, release tags, version-bump helper |
 
 ## Requirements
 
