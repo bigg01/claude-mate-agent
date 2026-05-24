@@ -23,6 +23,9 @@ env:
   IMAGE_NAME: ${{ github.repository }}/claude-mate-agent
   HELM_VERSION: "3.15.4"
   HELM_RELEASE: claude-mate-agent
+  # Opt JS actions (azure/setup-helm) into Node 24 ahead of the 2026-06-02
+  # deprecation cutover. Safe to remove once Node 24 is default.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   deploy:
@@ -34,7 +37,7 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Helm
         uses: azure/setup-helm@v4

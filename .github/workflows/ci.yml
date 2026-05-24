@@ -10,6 +10,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/claude-mate-agent
   HELM_VERSION: "3.15.4"
+  # Opt JS actions (azure/setup-helm, astral-sh/setup-uv) into Node 24 ahead of
+  # the 2026-06-02 deprecation cutover. Safe to remove once Node 24 is default.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   # Artifactory (all optional — set as repository variables to enable mirroring)
   # ARTIFACTORY_URL            Base URL, e.g. https://artifactory.example.com
   # ARTIFACTORY_DOCKER_REGISTRY Docker repo, e.g. artifactory.example.com/docker-remote
@@ -22,7 +25,7 @@ jobs:
     name: Helm lint & render
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -60,7 +63,7 @@ jobs:
             > gateway-rendered.yaml
 
       - name: Upload rendered manifests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: rendered-manifests
@@ -74,7 +77,7 @@ jobs:
     name: Unit tests & coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
@@ -94,7 +97,7 @@ jobs:
 
       - name: Upload coverage report (XML)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: |
@@ -130,13 +133,13 @@ jobs:
     name: Build documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build MkDocs site
         run: docker run --rm -v "$PWD:/docs" squidfunk/mkdocs-material build --strict
 
       - name: Upload docs site
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: docs-site
           path: site/
@@ -151,7 +154,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

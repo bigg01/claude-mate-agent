@@ -7,15 +7,18 @@ ARG UBI9_IMAGE="registry.access.redhat.com/ubi9/ubi:latest"
 ARG UBI9_MINIMAL_IMAGE="registry.access.redhat.com/ubi9/ubi-minimal:latest"
 ARG UV_IMAGE="ghcr.io/astral-sh/uv:latest"
 
+# ── Stage 0: alias the uv image to a named stage ──────────────────────────────
+# Buildkit forbids variable expansion in `COPY --from=` but allows it in `FROM`,
+# so we materialise UV_IMAGE here and reference it by stage name below.
+FROM ${UV_IMAGE} AS uv-source
+
 # ── Stage 1: compile Python wrapper into a single static binary ───────────────
 FROM ${UBI9_IMAGE} AS python-builder
 
-# Re-declare so the global ARG is visible inside this stage.
-ARG UV_IMAGE
 ARG PYPI_INDEX_URL=""
 
 # uv — fast Python package manager; replaces pip entirely in this stage.
-COPY --from=${UV_IMAGE} /uv /usr/local/bin/uv
+COPY --from=uv-source /uv /usr/local/bin/uv
 
 RUN dnf -y install python3.12 python3.12-devel binutils \
     && dnf -y clean all \
