@@ -51,11 +51,10 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          # First-run bootstrap: enable Pages on the repo if it isn't already.
-          # Avoids "Get Pages site failed: Not Found" before someone has clicked
-          # through Settings → Pages → Source: GitHub Actions.
-          enablement: true
+        # Pages must be enabled once on the repo before this workflow can deploy.
+        # The default GITHUB_TOKEN lacks the scope to enable it, so do it once with:
+        #   gh api -X POST /repos/OWNER/REPO/pages -f build_type=workflow
+        # (or click Settings → Pages → Source: GitHub Actions).
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
