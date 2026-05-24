@@ -1,15 +1,29 @@
 # Local Development
 
-## Quick start with Docker Compose
+## Container tool: Docker or Podman
+
+The compose files are tool-agnostic — every command below works the same with **either** runtime:
+
+| Command flavour | When to use |
+|---|---|
+| `make compose-up*` | Easiest; auto-detects `podman compose` or `docker compose` via `CONTAINER_TOOL` |
+| `docker compose ...` | If you already use Docker Desktop or `docker` daemon |
+| `podman compose ...` | If you have rootless Podman (built-in subcommand in podman ≥ 4.4) |
+| `podman-compose ...` | Older Podman setups using the standalone Python wrapper |
+
+The Makefile auto-detects podman first, falls back to docker. Override with `make compose-up CONTAINER_TOOL=docker` if you want to force one.
+
+## Quick start with Docker / Podman Compose
 
 The repository ships a `docker-compose.yml` that starts the agent in static mode alongside Prometheus and Grafana. The base stack needs no Kubernetes or API keys to run the static health/metrics server — only on-demand mode (`--once`) needs credentials, and only if you point at a managed LLM.
 
 ```bash
-# Build the agent image and start the full stack
-docker compose up --build
+# Easiest — auto-detects podman or docker
+make compose-up
 
-# or with Podman Compose
-podman-compose up --build
+# Or directly with either tool — same syntax, same files
+docker compose up --build
+podman compose up --build
 ```
 
 | Service | URL | Credentials |
@@ -68,14 +82,14 @@ On-demand mode requires an Anthropic API key and a task prompt. The container ex
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... CLAUDE_TASK="list the files in /tmp" \
-  docker-compose run --rm agent --once
+  docker compose run --rm agent --once
 ```
 
 The structured JSON log lines are printed to stdout. To extract the cost summary:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... CLAUDE_TASK="say hello" \
-  docker-compose run --rm agent --once 2>&1 | \
+  docker compose run --rm agent --once 2>&1 | \
   grep '"message":"task_cost_summary"'
 ```
 
@@ -106,7 +120,8 @@ make render         # renders AKS, OpenShift, and Gateway API variants
 ## Resetting the stack
 
 ```bash
-docker-compose down -v    # removes containers and named volumes (grafana-data)
+docker compose down -v    # removes containers and named volumes (grafana-data)
+# or: podman compose down -v
 ```
 
 ## Customise Prometheus scrape interval

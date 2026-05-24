@@ -44,6 +44,11 @@ ifndef CONTAINER_TOOL
   endif
 endif
 
+# COMPOSE — both `docker compose` and `podman compose` accept the same syntax
+# and the same docker-compose.*.yml files. Override with CONTAINER_TOOL=docker
+# or CONTAINER_TOOL=podman to force a specific tool.
+COMPOSE := $(CONTAINER_TOOL) compose
+
 # MKDOCS_BUILD has no port mapping (build doesn't serve); MKDOCS_SERVE does.
 MKDOCS_BUILD := $(CONTAINER_TOOL) run --rm -v $(PWD):/docs docker.io/squidfunk/mkdocs-material
 MKDOCS_SERVE := $(CONTAINER_TOOL) run -p $(DOCS_PORT):8000 --rm -v $(PWD):/docs docker.io/squidfunk/mkdocs-material
@@ -54,7 +59,9 @@ MKDOCS_SERVE := $(CONTAINER_TOOL) run -p $(DOCS_PORT):8000 --rm -v $(PWD):/docs 
 .PHONY: help build run run-once check test sast scan scan-fs scan-config \
         secrets sbom security lock sync lint render render-aks \
         render-openshift render-gateway render-bundle package docs-build \
-        docs-serve docs-diagrams version version-check release-tag clean
+        docs-serve docs-diagrams version version-check release-tag \
+        compose-up compose-up-local-llm compose-up-opensearch compose-up-gpu \
+        compose-down clean
 
 help:
 	@echo "Container tool: $(CONTAINER_TOOL)  (override: CONTAINER_TOOL=docker|podman)"
@@ -84,6 +91,13 @@ help:
 	@echo "  package           Package the Helm chart as a .tgz"
 	@echo "  docs-build        Build MkDocs static site to site/"
 	@echo "  docs-serve        Live-preview docs at http://localhost:DOCS_PORT"
+	@echo ""
+	@echo "Local compose (works with $(CONTAINER_TOOL) compose — docker or podman):"
+	@echo "  compose-up              Base stack: agent + Prometheus + Grafana + Pushgateway"
+	@echo "  compose-up-local-llm    + Ollama + LiteLLM (zero API key, fully local)"
+	@echo "  compose-up-opensearch   + OpenSearch + Dashboards (audit-log sink test)"
+	@echo "  compose-up-gpu          + NVIDIA GPU passthrough on the agent"
+	@echo "  compose-down            Stop everything (removes orphans, keeps volumes)"
 	@echo "  docs-diagrams     Re-export docs/assets/architecture.drawio to JPEG"
 	@echo "  clean             Remove the local container image and docs site"
 	@echo ""
@@ -251,6 +265,25 @@ docs-diagrams:
 	drawio --no-sandbox -x -f jpg -q 95 -b 20 --width 1920 \
 	  -o docs/assets/architecture.jpg docs/assets/architecture.drawio
 	@echo "Exported docs/assets/architecture.jpg"
+
+# ── Local compose stacks (works with both docker compose and podman compose) ──
+# CONTAINER_TOOL is auto-detected; override with CONTAINER_TOOL=docker if needed.
+# Equivalent to running the underlying `$(COMPOSE) ...` command shown beside each target.
+
+compose-up:
+	$(COMPOSE) up --build
+
+compose-up-local-llm:
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.local-llm.yml up --build
+
+compose-up-opensearch:
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.opensearch.yml up --build
+
+compose-up-gpu:
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.nvidia.yml up --build
+
+compose-down:
+	$(COMPOSE) down --remove-orphans
 
 clean:
 	$(CONTAINER_TOOL) rmi $(IMAGE):$(TAG) 2>/dev/null || true

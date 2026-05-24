@@ -68,13 +68,16 @@ See [Security & Compliance](docs/security.md) and [Security Scanning](docs/secur
 
 ### Fully local — no API key, no cloud (recommended first run)
 
+> **Runtime:** every command below works with either `docker compose` or `podman compose` (or via `make compose-up-*` which auto-detects). The compose files are tool-agnostic.
+
 ```bash
 # Boot agent + Ollama + LiteLLM together; LiteLLM bridges Anthropic ↔ OpenAI
-docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up --build
+make compose-up-local-llm     # auto-detects podman or docker
 
 # One-time: pull a model into Ollama
 docker compose -f docker-compose.yml -f docker-compose.local-llm.yml \
   exec ollama ollama pull llama3.1:8b
+# (or: podman compose ...)
 
 # Run a one-shot task against the local model — no ANTHROPIC_API_KEY needed
 CLAUDE_TASK="say hello in exactly three words" \
