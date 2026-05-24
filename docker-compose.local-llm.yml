@@ -15,12 +15,25 @@
 #   1. Start LM Studio's Local Server on port 1234
 #   2. Edit litellm/config.yaml: api_base: http://host.docker.internal:1234/v1
 #   3. Remove the ollama service below if you don't need both
+#
+# Podman note: a user-defined `networks:` block is required when running this
+# stack via `podman compose` backed by legacy docker-compose v1. Without it,
+# v1 translates `depends_on` into deprecated --link flags that podman rejects
+# with "bad parameter: link is not supported". Attaching every service to an
+# explicit network suppresses that translation.
+
+networks:
+  cm-local-llm:
+    driver: bridge
 
 services:
   agent:
     environment:
       ANTHROPIC_BASE_URL: "http://litellm:4000/anthropic"
       ANTHROPIC_API_KEY: "sk-litellm-local"   # virtual key — litellm ignores it
+    networks:
+      - default        # keep default so prometheus / grafana from the base stack still reach the agent
+      - cm-local-llm
     depends_on:
       # service_started (not service_healthy) — the agent's HTTP server boots
       # independently of litellm; an actual LLM call retries on its own if
@@ -30,6 +43,8 @@ services:
 
   ollama:
     image: docker.io/ollama/ollama:latest
+    networks:
+      - cm-local-llm
     ports:
       - "11434:11434"
     volumes:
@@ -51,6 +66,8 @@ services:
 
   litellm:
     image: ghcr.io/berriai/litellm:main-stable
+    networks:
+      - cm-local-llm
     ports:
       - "4000:4000"
     environment:
