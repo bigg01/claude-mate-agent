@@ -5,23 +5,46 @@
 #   docker compose -f docker-compose.yml -f docker-compose.local-llm.yml restart litellm
 
 model_list:
-  # Sonnet alias → a coding-tuned 8–14B model that fits on most laptops.
+  # Default mappings use tinyllama (~640MB, pulls in ~1 minute) so the stack
+  # works out of the box on any laptop without waiting for multi-GB downloads.
+  # Swap to llama3.1:8b / qwen2.5-coder:7b for production-quality output.
+
+  # Sonnet alias — Claude Code's primary model.
   - model_name: claude-3-5-sonnet-20241022
     litellm_params:
-      model: ollama_chat/llama3.1:8b
+      model: ollama_chat/tinyllama
       api_base: http://ollama:11434
 
-  # Haiku alias → a smaller, faster model for quick tasks.
+  # Haiku alias — Claude Code's fast model.
   - model_name: claude-3-5-haiku-20241022
     litellm_params:
-      model: ollama_chat/qwen2.5-coder:7b
+      model: ollama_chat/tinyllama
       api_base: http://ollama:11434
 
-  # Fallback: anything Claude Code asks for that we haven't mapped goes here.
+  # Pass-through — let callers (e.g. `ollama_chat/llama3.1:8b`) request a
+  # specific Ollama model by name without us having to enumerate every one.
+  - model_name: "ollama_chat/*"
+    litellm_params:
+      model: "ollama_chat/*"
+      api_base: http://ollama:11434
+
+  # Fallback — anything else maps to tinyllama so a wrong model name still works.
   - model_name: "*"
     litellm_params:
-      model: ollama_chat/llama3.1:8b
+      model: ollama_chat/tinyllama
       api_base: http://ollama:11434
+
+# Upgrade recipe — replace the defaults above with bigger models once you've
+# pulled them (`ollama pull llama3.1:8b` or `ollama pull qwen2.5-coder:7b`):
+#
+# - model_name: claude-3-5-sonnet-20241022
+#   litellm_params:
+#     model: ollama_chat/llama3.1:8b      # better quality, 4.7GB, needs ~8GB RAM
+#     api_base: http://ollama:11434
+# - model_name: claude-3-5-haiku-20241022
+#   litellm_params:
+#     model: ollama_chat/qwen2.5-coder:7b # tuned for code, 4.1GB
+#     api_base: http://ollama:11434
 
 # Master key — must match LITELLM_MASTER_KEY env on the litellm container
 # AND the ANTHROPIC_API_KEY the agent sends. Virtual / fake; no upstream key.

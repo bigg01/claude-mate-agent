@@ -61,7 +61,7 @@ MKDOCS_SERVE := $(CONTAINER_TOOL) run -p $(DOCS_PORT):8000 --rm -v $(PWD):/docs 
         render-openshift render-gateway render-bundle package docs-build \
         docs-serve docs-diagrams version version-check release-tag \
         compose-up compose-up-local-llm compose-up-opensearch compose-up-gpu \
-        compose-down clean
+        compose-down test-local-llm test-local-llm-quick clean
 
 help:
 	@echo "Container tool: $(CONTAINER_TOOL)  (override: CONTAINER_TOOL=docker|podman)"
@@ -98,6 +98,8 @@ help:
 	@echo "  compose-up-opensearch   + OpenSearch + Dashboards (audit-log sink test)"
 	@echo "  compose-up-gpu          + NVIDIA GPU passthrough on the agent"
 	@echo "  compose-down            Stop everything (removes orphans, keeps volumes)"
+	@echo "  test-local-llm          E2E smoke test: ollama + litellm + agent (pulls tinyllama)"
+	@echo "  test-local-llm-quick    Connectivity-only check (skips model pull)"
 	@echo "  docs-diagrams     Re-export docs/assets/architecture.drawio to JPEG"
 	@echo "  clean             Remove the local container image and docs site"
 	@echo ""
@@ -284,6 +286,14 @@ compose-up-gpu:
 
 compose-down:
 	$(COMPOSE) down --remove-orphans
+
+# Smoke-test the local-llm stack. Use --quick for connectivity-only (skips
+# the ~640MB tinyllama pull). The stack must already be up (compose-up-local-llm).
+test-local-llm:
+	@scripts/test-local-llm.sh
+
+test-local-llm-quick:
+	@scripts/test-local-llm.sh --quick
 
 clean:
 	$(CONTAINER_TOOL) rmi $(IMAGE):$(TAG) 2>/dev/null || true
